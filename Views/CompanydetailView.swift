@@ -154,6 +154,8 @@ struct CompanyDetailView: View {
                 dismissButton: .default(Text("Tamam"))
             )
         }
+        .background(AppTheme.background)
+        .corporateScreen()
     }
     // MARK: - ŞİRKET BAŞLIK
     
@@ -807,19 +809,40 @@ func handleBalanceAdjustment(
 ) {
     let result: FinancialOperationResult
 
+    let difference = MoneyMath.subtract(newBalance, target.currentBalance)
     switch target {
     case .company(let targetCompany):
-        result = store.adjustCompanyBalance(
-            companyID: targetCompany.id,
-            newBalance: newBalance,
-            description: description
-        )
+        if difference >= 0 {
+            result = store.addCapital(
+                amount: difference,
+                companyID: targetCompany.id,
+                posBankID: nil,
+                description: description
+            )
+        } else {
+            result = store.withdrawCapital(
+                amount: abs(difference),
+                companyID: targetCompany.id,
+                posBankID: nil,
+                description: description
+            )
+        }
     case .bank(let bank):
-        result = store.adjustPOSBankBalance(
-            bankID: bank.id,
-            newBalance: newBalance,
-            description: description
-        )
+        if difference >= 0 {
+            result = store.addCapital(
+                amount: difference,
+                companyID: bank.companyID,
+                posBankID: bank.id,
+                description: description
+            )
+        } else {
+            result = store.withdrawCapital(
+                amount: abs(difference),
+                companyID: bank.companyID,
+                posBankID: bank.id,
+                description: description
+            )
+        }
     }
 
     switch result {
@@ -1000,10 +1023,7 @@ struct BalanceAdjustmentView: View {
     @State private var description = ""
 
     var amount: Double {
-        let clean = amountText
-            .replacingOccurrences(of: ".", with: "")
-            .replacingOccurrences(of: ",", with: ".")
-        return Double(clean) ?? 0
+        return MoneyMath.parseTurkishAmount(amountText) ?? 0
     }
 
     var newBalance: Double {

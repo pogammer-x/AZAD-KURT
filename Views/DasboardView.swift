@@ -25,10 +25,11 @@ struct DashboardView: View {
                     columns: [GridItem(.adaptive(minimum: 220), spacing: 16)],
                     spacing: 16
                 ) {
-                    summaryCard("Ana Para", store.totalCapital, "tray.and.arrow.down.fill")
-                    summaryCard("Toplam Kasa", store.totalCashBalance, "banknote.fill")
+                    summaryCard("Toplam Bakiye", store.totalCashBalance, "banknote.fill")
                     summaryCard("Toplam Alacak", store.receivablesTotal, "arrow.down.circle.fill")
-                    summaryCard("Toplam Tahsilat", store.paymentsTotal, "arrow.up.circle.fill")
+                    summaryCard("Toplam Ödeme / Borç", store.paymentsTotal, "arrow.up.circle.fill")
+                    summaryCard("Net Kâr", store.netProfit, "chart.line.uptrend.xyaxis")
+                    summaryCard("Ana Para", store.totalCapital, "tray.and.arrow.down.fill")
                     summaryCard("Bekleyen POS", store.pendingPOSTotal, "clock.fill")
                     summaryCard("Netleşen POS", store.settledPOSTotal, "checkmark.circle.fill")
                     summaryCard("Toplam POS Brüt", store.totalPOSVolume, "creditcard.fill")
@@ -157,16 +158,9 @@ struct CapitalManagementView: View {
                 balance: $0.balance
             )
         }
-        let bankTargets = banks.map {
-            CapitalAccountTarget(
-                id: "bank-\($0.id.uuidString)",
-                companyID: $0.companyID,
-                posBankID: $0.id,
-                title: "\(companyName($0.companyID)) · \($0.bankName)",
-                balance: $0.balance
-            )
-        }
-        return companyTargets + bankTargets
+        // The ordinary capital flow always changes the selected company's cash
+        // balance. POS bank balances are populated only by explicit POS flows.
+        return companyTargets
     }
 
     var selectedTarget: CapitalAccountTarget? {
@@ -174,11 +168,7 @@ struct CapitalManagementView: View {
     }
 
     var amount: Double {
-        Double(
-            amountText
-                .replacingOccurrences(of: ".", with: "")
-                .replacingOccurrences(of: ",", with: ".")
-        ) ?? 0
+        MoneyMath.parseTurkishAmount(amountText) ?? 0
     }
 
     var body: some View {

@@ -1,6 +1,30 @@
 import Foundation
 
 enum MoneyMath {
+    /// Parses amounts entered with Turkish grouping/decimal separators.
+    /// Accepted examples: 200000, 200.000, 200.000,50 and 200000,50.
+    static func parseTurkishAmount(_ text: String) -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let normalized = trimmed
+            .replacingOccurrences(of: "\u{00a0}", with: "")
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: "₺", with: "")
+            .replacingOccurrences(of: "TL", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: ".", with: "")
+            .replacingOccurrences(of: ",", with: ".")
+
+        guard !normalized.isEmpty,
+              normalized.filter({ $0 == "." }).count <= 1,
+              normalized.allSatisfy({ $0.isNumber || $0 == "." || $0 == "-" }),
+              let value = Double(normalized),
+              value.isFinite else {
+            return nil
+        }
+        return rounded(value)
+    }
+
     static func rounded(_ value: Double) -> Double {
         let number = NSDecimalNumber(value: value)
         let behavior = NSDecimalNumberHandler(
