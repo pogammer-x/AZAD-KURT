@@ -3,6 +3,8 @@ import Combine
 
 final class AppStore: ObservableObject {
 
+    static let defaultDeletionPassword = "0000"
+
     private var isBatchUpdating = false
 
     // MARK: - ANA VERİLER
@@ -1664,6 +1666,39 @@ final class AppStore: ObservableObject {
         updates()
         isBatchUpdating = false
         save()
+    }
+
+
+    // =====================================================
+    // MARK: - TÜM KULLANICI VERİLERİNİ SİL
+    // =====================================================
+
+    func isValidDeletionPassword(
+        _ password: String
+    ) -> Bool {
+        password == AppStore.defaultDeletionPassword
+    }
+
+
+    func deleteAllUserData(
+        password: String
+    ) -> FinancialOperationResult {
+        guard isValidDeletionPassword(password) else {
+            return .failure("Şifre yanlış.")
+        }
+
+        performBatchUpdate {
+            companies.removeAll()
+            posBanks.removeAll()
+            posTransactions.removeAll()
+            receivables.removeAll()
+            payments.removeAll()
+            balanceTransactions.removeAll()
+            invoices.removeAll()
+            transactions.removeAll()
+        }
+
+        return .success
     }
 
 
