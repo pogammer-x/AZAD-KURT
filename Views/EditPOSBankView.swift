@@ -69,18 +69,18 @@ struct EditPOSBankView: View {
                         "Banka adı",
                         text: $bankName
                     )
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Tek Çekim Oranı")
+                    Text("Tek Çekim Banka Komisyon Oranı")
                         .font(.headline)
 
                     TextField(
                         "%0,00",
                         text: $singlePaymentRate
                     )
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
                 }
 
                 Toggle(
@@ -90,7 +90,7 @@ struct EditPOSBankView: View {
 
                 Divider()
 
-                Text("Taksit Oranları")
+                Text("Taksit Banka Komisyon Oranları")
                     .font(.title2)
                     .fontWeight(.bold)
 
@@ -122,7 +122,7 @@ struct EditPOSBankView: View {
                                     }
                                 )
                             )
-                            .textFieldStyle(.roundedBorder)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
                         }
                     }
                 }

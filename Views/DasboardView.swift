@@ -3,8 +3,6 @@ import SwiftUI
 struct DashboardView: View {
     @EnvironmentObject var store: AppStore
     @State private var capitalAction: CapitalAction?
-    @State private var errorMessage = ""
-    @State private var showError = false
 
     var body: some View {
         ScrollView {
@@ -19,7 +17,7 @@ struct DashboardView: View {
                     }
                     Spacer()
                     Button("Ana Para Ekle") { capitalAction = .add }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(DefaultButtonStyle())
                     Button("Ana Para Çıkar") { capitalAction = .withdraw }
                 }
 
@@ -57,13 +55,6 @@ struct DashboardView: View {
                 }
             )
         }
-        .alert(isPresented: $showError) {
-            Alert(
-                title: Text("Ana Para İşlemi Hatası"),
-                message: Text(errorMessage),
-                dismissButton: .default(Text("Tamam"))
-            )
-        }
     }
 
     func summaryCard(
@@ -91,7 +82,7 @@ struct DashboardView: View {
         amount: Double,
         description: String,
         movementID: UUID
-    ) {
+    ) -> FinancialOperationResult {
         let result: FinancialOperationResult
         switch action {
         case .add:
@@ -112,13 +103,10 @@ struct DashboardView: View {
             )
         }
 
-        switch result {
-        case .success:
+        if case .success = result {
             capitalAction = nil
-        case .failure(let message):
-            errorMessage = message
-            showError = true
         }
+        return result
     }
 
     func currency(_ amount: Double) -> String {
@@ -150,13 +138,15 @@ struct CapitalManagementView: View {
     let action: CapitalAction
     let companies: [Company]
     let banks: [POSBank]
-    let onSave: (CapitalAccountTarget, Double, String, UUID) -> Void
+    let onSave: (CapitalAccountTarget, Double, String, UUID) -> FinancialOperationResult
 
     @Environment(\.presentationMode) private var presentationMode
     @State private var selectedTargetID = ""
     @State private var amountText = ""
     @State private var description = ""
     @State private var movementID = UUID()
+    @State private var errorMessage = ""
+    @State private var showError = false
 
     var targets: [CapitalAccountTarget] {
         let companyTargets = companies.map {
@@ -210,23 +200,33 @@ struct CapitalManagementView: View {
             }
 
             TextField("Tutar", text: $amountText)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
             TextField("Açıklama (zorunlu)", text: $description)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
 
             HStack {
                 Button("Vazgeç") { presentationMode.wrappedValue.dismiss() }
                 Spacer()
                 Button(action.title) {
                     guard let target = selectedTarget else { return }
-                    onSave(
+                    let result = onSave(
                         target,
                         amount,
                         description.trimmingCharacters(in: .whitespacesAndNewlines),
                         movementID
                     )
+                    switch result {
+                    case .success:
+                        amountText = ""
+                        description = ""
+                        movementID = UUID()
+                        presentationMode.wrappedValue.dismiss()
+                    case .failure(let message):
+                        errorMessage = message
+                        showError = true
+                    }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(DefaultButtonStyle())
                 .disabled(
                     selectedTarget == nil ||
                     amount <= 0 ||
@@ -240,6 +240,13 @@ struct CapitalManagementView: View {
             if selectedTargetID.isEmpty {
                 selectedTargetID = targets.first?.id ?? ""
             }
+        }
+        .alert(isPresented: $showError) {
+            Alert(
+                title: Text("Ana Para İşlemi Hatası"),
+                message: Text(errorMessage),
+                dismissButton: .default(Text("Tamam"))
+            )
         }
     }
 

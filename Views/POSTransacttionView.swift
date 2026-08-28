@@ -6,7 +6,7 @@ struct POSTransactionView: View {
     let posBanks: [POSBank]
     let fundingCompanies: [Company]
     let editingTransaction: POSTransaction?
-    let onSave: (POSTransaction) -> Void
+    let onSave: (POSTransaction) -> FinancialOperationResult
 
     @State private var selectedBankIndex: Int
     @State private var customerName: String
@@ -14,15 +14,18 @@ struct POSTransactionView: View {
     @State private var installmentCount: Int
     @State private var fundingSources: [POSFundingSource]
 
-    @State private var useCustomRate: Bool
-    @State private var customRateText: String
+    @State private var useCustomerRate: Bool
+    @State private var customerRateText: String
+    @State private var saveErrorMessage = ""
+    @State private var showSaveError = false
+    @Environment(\.presentationMode) private var presentationMode
 
     init(
         company: Company,
         posBanks: [POSBank],
         fundingCompanies: [Company],
         editingTransaction: POSTransaction? = nil,
-        onSave: @escaping (POSTransaction) -> Void
+        onSave: @escaping (POSTransaction) -> FinancialOperationResult
     ) {
 
         self.company = company
@@ -81,11 +84,13 @@ struct POSTransactionView: View {
                     editingTransaction?.installmentCount ?? 1
             )
 
-        _useCustomRate =
-            State(initialValue: false)
+        _useCustomerRate =
+            State(initialValue: (editingTransaction?.customerRate ?? 0) > 0)
 
-        _customRateText =
-            State(initialValue: "")
+        _customerRateText =
+            State(initialValue: editingTransaction.map {
+                String(format: "%.2f", $0.customerRate)
+            } ?? "")
     }
 
 
@@ -179,6 +184,13 @@ struct POSTransactionView: View {
             width: 560,
             height: 680
         )
+        .alert(isPresented: $showSaveError) {
+            Alert(
+                title: Text("POS İşlemi Hatası"),
+                message: Text(saveErrorMessage),
+                dismissButton: .default(Text("Tamam"))
+            )
+        }
     }
 
 
@@ -289,16 +301,16 @@ struct POSTransactionView: View {
             Text("Toplam Ana Para: \(money(principal))")
                 .fontWeight(.semibold)
 
-            Text("POS'a Girilen Tutar")
-                .font(.headline)
+            if useCustomerRate {
+                Text("Müşteri oranına göre brüt POS: \(money(posAmount))")
+                    .fontWeight(.semibold)
+            } else {
+                Text("POS Brüt Tutarı")
+                    .font(.headline)
 
-            TextField(
-                "Örn: 207.000",
-                text: posBinding
-            )
-            .textFieldStyle(
-                RoundedBorderTextFieldStyle()
-            )
+                TextField("Örn: 106.000", text: posBinding)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+            }
         }
     }
 
@@ -341,47 +353,21 @@ struct POSTransactionView: View {
     // MARK: - KOMİSYON
 
     var commissionSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Banka komisyon oranı: %" + String(format: "%.2f", bankRate))
+                .fontWeight(.bold)
+            Text("Bu oran Şirket > POS banka ayarlarından yönetilir.")
+                .font(.caption)
+                .foregroundColor(.secondary)
 
-        VStack(
-            alignment: .leading,
-            spacing: 10
-        ) {
+            Toggle("Müşteriye satış oranı uygula", isOn: $useCustomerRate)
 
-            Text(
-                "Tanımlı oran: %" +
-                String(
-                    format: "%.2f",
-                    bankRate
-                )
-            )
-
-            Toggle(
-                "Bu işlem için oranı değiştir",
-                isOn: $useCustomRate
-            )
-
-            if useCustomRate {
-
-                TextField(
-                    "Özel komisyon oranı (%)",
-                    text: $customRateText
-                )
-                .textFieldStyle(
-                    RoundedBorderTextFieldStyle()
-                )
+            if useCustomerRate {
+                TextField("Müşteri oranı (%)", text: $customerRateText)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
             }
-
-            Text(
-                "Kullanılan oran: %" +
-                String(
-                    format: "%.2f",
-                    currentRate
-                )
-            )
-            .fontWeight(.bold)
         }
     }
-
 
     // MARK: - SONUÇ
 
@@ -539,18 +525,12 @@ struct POSTransactionView: View {
     }
 
 
-    var currentRate: Double {
-
-        if useCustomRate {
-
-            return convertRate(
-                customRateText
-            )
+    var customerRate: Double {
+        if useCustomerRate {
+            return convertRate(customerRateText)
         }
-
-        return bankRate
+        return 0
     }
-
 
     // MARK: - HESAPLAMA
 
@@ -562,10 +542,10 @@ struct POSTransactionView: View {
 
 
     var posAmount: Double {
-
-        return convertMoney(
-            posText
-        )
+        if useCustomerRate {
+            return MoneyMath.rounded(principal * (1 + customerRate / 100))
+        }
+        return convertMoney(posText)
     }
 
 
@@ -593,7 +573,7 @@ struct POSTransactionView: View {
         POSCalculator.calculate(
             fundingSources: fundingSources,
             posAmount: posAmount,
-            commissionRate: currentRate
+            commissionRate: bankRate
         )
     }
 
@@ -622,7 +602,9 @@ struct POSTransactionView: View {
                 customerName: customerName,
                 principalAmount: principal,
                 posAmount: posAmount,
-                commissionRate: currentRate,
+                commissionRate: bankRate,
+                customerRate: customerRate,
+                bankCommissionRate: bankRate,
                 commissionAmount: commissionAmount,
                 netBankAmount: netBankAmount,
                 grossProfitAmount: grossProfitAmount,
@@ -651,7 +633,13 @@ struct POSTransactionView: View {
                 old.note
         }
 
-        onSave(transaction)
+        switch onSave(transaction) {
+        case .success:
+            presentationMode.wrappedValue.dismiss()
+        case .failure(let message):
+            saveErrorMessage = message
+            showSaveError = true
+        }
     }
 
 
@@ -661,11 +649,10 @@ struct POSTransactionView: View {
         _ text: String
     ) -> Double {
 
-        let clean =
-            text.replacingOccurrences(
-                of: ".",
-                with: ""
-            )
+        let clean = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: ".", with: "")
+            .replacingOccurrences(of: ",", with: ".")
 
         return Double(clean) ?? 0
     }
