@@ -11,6 +11,8 @@ struct ContentView: View {
         case pos = "POS İşlemleri"
         case receivables = "Alacaklar"
         case payments = "Ödemeler"
+        case invoices = "Faturalar"
+        case history = "İşlem Geçmişi"
         case incomeExpense = "Gelir / Gider"
         case reports = "Raporlar"
         case settings = "Ayarlar"
@@ -24,6 +26,8 @@ struct ContentView: View {
             case .pos: return "creditcard.fill"
             case .receivables: return "arrow.down.circle.fill"
             case .payments: return "arrow.up.circle.fill"
+            case .invoices: return "doc.text.fill"
+            case .history: return "clock.arrow.circlepath"
             case .incomeExpense: return "chart.bar.fill"
             case .reports: return "doc.text.fill"
             case .settings: return "gearshape.fill"
@@ -59,6 +63,19 @@ struct ContentView: View {
                             Spacer()
                         }
                         .padding(8)
+                        .foregroundColor(
+                            selectedMenu == item
+                                ? AppTheme.primaryText
+                                : AppTheme.secondaryText
+                        )
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(
+                                    selectedMenu == item
+                                        ? AppTheme.accentMuted
+                                        : Color.clear
+                                )
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -67,6 +84,7 @@ struct ContentView: View {
             }
             .padding()
             .frame(width: 210)
+            .background(AppTheme.sidebar)
 
             Divider()
 
@@ -87,35 +105,34 @@ struct ContentView: View {
                 case .payments:
                     PaymentsView()
                         .environmentObject(store)
+                case .invoices:
+                    InvoicesView()
+                        .environmentObject(store)
+                case .history:
+                    FinancialHistoryView()
+                        .environmentObject(store)
                 case .incomeExpense:
-                    SimplePage(
-                        title: "Gelir / Gider",
-                        subtitle: "Gelir, gider ve net kâr takibi",
-                        icon: "chart.bar.fill"
-                    )
+                    IncomeExpenseView()
+                        .environmentObject(store)
 
                 case .reports:
-                    SimplePage(
-                        title: "Raporlar",
-                        subtitle: "Finansal raporlar",
-                        icon: "doc.text.fill"
-                    )
+                    FinancialReportsView()
+                        .environmentObject(store)
 
                 case .settings:
-                    SimplePage(
-                        title: "Ayarlar",
-                        subtitle: "Uygulama ayarları",
-                        icon: "gearshape.fill"
-                    )
+                    SettingsView()
+                        .environmentObject(store)
                 }
             }
             .environmentObject(store)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(AppTheme.background)
         }
         .frame(
             minWidth: 1100,
             minHeight: 700
         )
+        .corporateScreen()
     }
 }
 

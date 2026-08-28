@@ -6,7 +6,7 @@ struct PaymentsView: View {
     @EnvironmentObject var store: AppStore
 
     private var totalPayments: Double {
-        store.payments.reduce(0) { total, payment in
+        store.payments.filter { !$0.isCancelled }.reduce(0) { total, payment in
             total + payment.amount
         }
     }
@@ -69,6 +69,10 @@ struct PaymentsView: View {
                                         .font(.headline)
                                         .fontWeight(.semibold)
 
+                                    Text(payment.reference + (payment.isCancelled ? " · İptal" : ""))
+                                        .font(.caption)
+                                        .foregroundColor(payment.isCancelled ? .red : .secondary)
+
                                     if !payment.note.isEmpty {
                                         Text(payment.note)
                                             .font(.caption)
@@ -85,11 +89,12 @@ struct PaymentsView: View {
                                 Text(currencyText(payment.amount))
                                     .font(.title3)
                                     .fontWeight(.bold)
+                                    .opacity(payment.isCancelled ? 0.5 : 1)
                             }
                             .padding()
                             .background(
                                 RoundedRectangle(cornerRadius: 10)
-                                    .fill(Color.primary.opacity(0.05))
+                                    .fill(AppTheme.card)
                             )
                         }
                     }

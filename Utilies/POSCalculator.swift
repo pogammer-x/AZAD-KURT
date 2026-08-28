@@ -7,10 +7,25 @@ struct POSCalculationResult {
     
     var commissionAmount: Double
     var netBankAmount: Double
+    var grossProfitAmount: Double
     var profitAmount: Double
 }
 
 struct POSCalculator {
+
+    static func calculate(
+        fundingSources: [POSFundingSource],
+        posAmount: Double,
+        commissionRate: Double
+    ) -> POSCalculationResult {
+        calculate(
+            principalAmount: fundingSources.reduce(0) {
+                $0 + $1.amount
+            },
+            posAmount: posAmount,
+            commissionRate: commissionRate
+        )
+    }
     
     static func calculate(
         principalAmount: Double,
@@ -20,11 +35,13 @@ struct POSCalculator {
         
         let rate = commissionRate / 100
         
-        let commissionAmount = posAmount * rate
+        let commissionAmount = MoneyMath.rounded(posAmount * rate)
         
-        let netBankAmount = posAmount - commissionAmount
+        let netBankAmount = MoneyMath.subtract(posAmount, commissionAmount)
         
-        let profitAmount = netBankAmount - principalAmount
+        let grossProfitAmount = MoneyMath.subtract(posAmount, principalAmount)
+
+        let profitAmount = MoneyMath.subtract(grossProfitAmount, commissionAmount)
         
         return POSCalculationResult(
             principalAmount: principalAmount,
@@ -32,6 +49,7 @@ struct POSCalculator {
             commissionRate: commissionRate,
             commissionAmount: commissionAmount,
             netBankAmount: netBankAmount,
+            grossProfitAmount: grossProfitAmount,
             profitAmount: profitAmount
         )
     }

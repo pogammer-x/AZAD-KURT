@@ -16,6 +16,7 @@ struct AddReceivableView: View {
 
     @State private var compoundInterest = true
     @State private var note = ""
+    @State private var selectedCompanyID: UUID?
 
     var body: some View {
 
@@ -46,6 +47,12 @@ struct AddReceivableView: View {
             Form {
 
                 Section(header: Text("ALACAK BİLGİLERİ")) {
+
+                    Picker("Şirket", selection: $selectedCompanyID) {
+                        ForEach(store.companies) { company in
+                            Text(company.name).tag(company.id as UUID?)
+                        }
+                    }
 
                     TextField(
                         "Borçlu / Kişi Adı",
@@ -133,7 +140,8 @@ struct AddReceivableView: View {
                 }
                 .disabled(
                     debtorName.isEmpty ||
-                    amountValue <= 0
+                    amountValue <= 0 ||
+                    selectedCompanyID == nil
                 )
             }
             .padding()
@@ -142,6 +150,11 @@ struct AddReceivableView: View {
             minWidth: 600,
             minHeight: 600
         )
+        .onAppear {
+            if selectedCompanyID == nil {
+                selectedCompanyID = store.companies.first?.id
+            }
+        }
     }
 
     var amountValue: Double {
@@ -163,8 +176,12 @@ struct AddReceivableView: View {
 
     func saveReceivable() {
 
+        guard let selectedCompanyID else {
+            return
+        }
+
         let newReceivable = Receivable(
-            companyID: UUID(),
+            companyID: selectedCompanyID,
             debtorName: debtorName,
             reason: reason,
             principalAmount: amountValue,
