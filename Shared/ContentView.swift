@@ -11,10 +11,10 @@ struct ContentView: View {
         case pos = "POS İşlemleri"
         case receivables = "Alacaklar"
         case payments = "Ödemeler"
-        case invoices = "Faturalar"
-        case history = "İşlem Geçmişi"
         case incomeExpense = "Gelir / Gider"
+        case invoices = "Faturalar"
         case reports = "Raporlar"
+        case history = "Finansal Geçmiş"
         case settings = "Ayarlar"
 
         var id: String { rawValue }
@@ -46,6 +46,8 @@ struct ContentView: View {
 
                 Text("MANAGER")
                     .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(AppTheme.textSecondary)
 
                 Divider()
                     .padding(.vertical, 10)
@@ -72,7 +74,7 @@ struct ContentView: View {
                             RoundedRectangle(cornerRadius: 8)
                                 .fill(
                                     selectedMenu == item
-                                        ? AppTheme.accentMuted
+                                        ? AppTheme.accent
                                         : Color.clear
                                 )
                         )
@@ -83,10 +85,10 @@ struct ContentView: View {
                 Spacer()
             }
             .padding()
-            .frame(width: 210)
+            .frame(width: 240)
             .background(AppTheme.sidebar)
 
-            Divider()
+            Rectangle().fill(AppTheme.border).frame(width: 1)
 
             Group {
                 switch selectedMenu {

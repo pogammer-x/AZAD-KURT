@@ -17,29 +17,36 @@ struct DashboardView: View {
                     }
                     Spacer()
                     Button("Ana Para Ekle") { capitalAction = .add }
-                        .buttonStyle(DefaultButtonStyle())
+                        .buttonStyle(PlainButtonStyle())
+                        .accentButton()
                     Button("Ana Para Çıkar") { capitalAction = .withdraw }
+                        .foregroundColor(AppTheme.textPrimary)
                 }
 
                 LazyVGrid(
                     columns: [GridItem(.adaptive(minimum: 220), spacing: 16)],
                     spacing: 16
                 ) {
-                    summaryCard("Toplam Bakiye", store.totalCashBalance, "banknote.fill")
-                    summaryCard("Toplam Alacak", store.receivablesTotal, "arrow.down.circle.fill")
-                    summaryCard("Toplam Ödeme / Borç", store.paymentsTotal, "arrow.up.circle.fill")
-                    summaryCard("Net Kâr", store.netProfit, "chart.line.uptrend.xyaxis")
-                    summaryCard("Ana Para", store.totalCapital, "tray.and.arrow.down.fill")
-                    summaryCard("Bekleyen POS", store.pendingPOSTotal, "clock.fill")
-                    summaryCard("Netleşen POS", store.settledPOSTotal, "checkmark.circle.fill")
-                    summaryCard("Toplam POS Brüt", store.totalPOSVolume, "creditcard.fill")
-                    summaryCard("Toplam Komisyon", store.totalCommission, "percent")
-                    summaryCard("Toplam Brüt Kâr", store.totalGrossPOSProfit, "chart.bar.fill")
-                    summaryCard("Toplam Net Kâr", store.totalNetPOSProfit, "chart.line.uptrend.xyaxis")
+                    summaryCard("TOPLAM BAKİYE", store.totalCashBalance, "banknote.fill", "Tüm nakit hesapları")
+                    summaryCard("TOPLAM ALACAK", store.receivablesTotal, "arrow.down.left", "Açık alacak bakiyesi")
+                    summaryCard("TOPLAM ÖDEME / BORÇ", store.paymentsTotal, "arrow.up.right", "Gerçekleşen ödemeler")
+                    summaryCard("NET KÂR", store.netProfit, "chart.line.uptrend.xyaxis", "Güncel finansal sonuç")
+                }
+
+                HStack(alignment: .top, spacing: 16) {
+                    companyBalancesSection
+                    recentTransactionsSection
+                }
+
+                HStack(alignment: .top, spacing: 16) {
+                    pendingPOSSection
+                    financialOverviewSection
                 }
             }
             .padding(28)
         }
+        .background(AppTheme.background.edgesIgnoringSafeArea(.all))
+        .corporateScreen()
         .sheet(item: $capitalAction) { action in
             CapitalManagementView(
                 action: action,
@@ -61,20 +68,99 @@ struct DashboardView: View {
     func summaryCard(
         _ title: String,
         _ amount: Double,
-        _ icon: String
+        _ icon: String,
+        _ subtitle: String
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Image(systemName: icon).font(.title3)
+                Image(systemName: icon)
+                    .font(.title3)
+                    .frame(width: 40, height: 40)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(AppTheme.accent))
                 Spacer()
             }
-            Text(title).font(.caption).foregroundColor(.secondary)
+            Text(title).font(.caption).foregroundColor(AppTheme.textSecondary)
             Text(currency(amount)).font(.title2).fontWeight(.bold)
+            Text(subtitle).font(.caption).foregroundColor(AppTheme.textSecondary)
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 14).fill(AppTheme.card))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border))
+    }
+
+    var companyBalancesSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Şirket Bakiyeleri").font(.title3).fontWeight(.bold)
+            ForEach(store.companies) { company in
+                HStack {
+                    Text(String(company.name.prefix(1)).uppercased())
+                        .fontWeight(.bold)
+                        .frame(width: 32, height: 32)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(AppTheme.accentMuted))
+                    Text(company.name).fontWeight(.semibold)
+                    Spacer()
+                    Text(currency(company.balance)).fontWeight(.bold)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 190, alignment: .topLeading)
+        .premiumCard()
+    }
+
+    var recentTransactionsSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Son İşlemler").font(.title3).fontWeight(.bold)
+            ForEach(Array(store.balanceTransactions.sorted { $0.date > $1.date }.prefix(4))) { movement in
+                HStack {
+                    Image(systemName: movement.amount >= 0 ? "arrow.down.left" : "arrow.up.right")
+                        .foregroundColor(movement.amount >= 0 ? AppTheme.positive : AppTheme.negative)
+                    Text(movement.description).lineLimit(1)
+                    Spacer()
+                    Text(currency(movement.amount)).fontWeight(.semibold)
+                }
+            }
+            if store.balanceTransactions.isEmpty {
+                Text("Henüz finansal hareket yok.").foregroundColor(AppTheme.textSecondary)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 190, alignment: .topLeading)
+        .premiumCard()
+    }
+
+    var pendingPOSSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Bekleyen POS").font(.title3).fontWeight(.bold)
+            Text(currency(store.pendingPOSTotal)).font(.title).fontWeight(.bold)
+            Text("Netleşmeyi bekleyen POS işlemleri")
+                .foregroundColor(AppTheme.textSecondary)
+            ProgressView(value: store.pendingPOSTotal, total: max(store.totalPOSVolume, 1))
+                .accentColor(AppTheme.accent)
+        }
+        .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
+        .premiumCard(secondary: true)
+    }
+
+    var financialOverviewSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Finansal Özet").font(.title3).fontWeight(.bold)
+            HStack(spacing: 8) {
+                overviewBar("Bakiye", store.totalCashBalance, AppTheme.textPrimary)
+                overviewBar("Alacak", store.receivablesTotal, AppTheme.positive)
+                overviewBar("Ödeme", store.paymentsTotal, AppTheme.negative)
+                overviewBar("Kâr", store.netProfit, AppTheme.accent)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
+        .premiumCard(secondary: true)
+    }
+
+    func overviewBar(_ title: String, _ value: Double, _ color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Rectangle().fill(color).frame(height: max(4, min(34, CGFloat(abs(value) / 10000))))
+            Text(title).font(.caption).foregroundColor(AppTheme.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .bottomLeading)
     }
 
     func handleCapital(
