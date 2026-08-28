@@ -197,7 +197,7 @@ struct InvoicesView: View {
                     saveSnapshot(openConfirmation: true)
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(DefaultButtonStyle())
             .disabled(selectedCompanyID == nil)
             Spacer()
             Text(periodText(period))
@@ -343,7 +343,7 @@ struct InvoiceConfirmationView: View {
                     onSave(invoiceDate, invoiceNumber.isEmpty ? nil : invoiceNumber, note)
                     presentationMode.wrappedValue.dismiss()
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(DefaultButtonStyle())
             }
         }
         .padding(24)

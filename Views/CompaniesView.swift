@@ -13,8 +13,7 @@ struct CompaniesView: View {
     @State private var deletingCompany: Company? = nil
 
     var body: some View {
-
-        
+        NavigationView {
             VStack(
                 alignment: .leading,
                 spacing: 20
@@ -36,7 +35,8 @@ struct CompaniesView: View {
                 Spacer()
             }
             .padding(25)
-            
+        }
+        .navigationViewStyle(StackNavigationViewStyle())
 
         // YENİ ŞİRKET
         .sheet(
@@ -366,7 +366,7 @@ struct CompaniesView: View {
                 "Şirket adı",
                 text: $newCompanyName
             )
-            .textFieldStyle(.roundedBorder)
+            .textFieldStyle(RoundedBorderTextFieldStyle())
 
             HStack {
                 Spacer()

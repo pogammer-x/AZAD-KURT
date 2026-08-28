@@ -18,7 +18,7 @@ struct IncomeExpenseView: View {
                 }
                 Spacer()
                 Button("Yeni Gelir / Gider") { showEntry = true }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(DefaultButtonStyle())
             }
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 12)]) {

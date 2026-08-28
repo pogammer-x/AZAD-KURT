@@ -17,7 +17,11 @@ struct POSTransaction: Identifiable, Codable {
     var principalAmount: Double
     var posAmount: Double
     
+    // Bankanın POS kesinti oranı. Eski kayıtlarla uyumluluk için commissionRate korunur.
     var commissionRate: Double
+    // Müşteriye uygulanan satış oranı banka oranından bağımsızdır.
+    var customerRate: Double
+    var bankCommissionRate: Double
     var commissionAmount: Double
     
     var netBankAmount: Double
@@ -41,7 +45,7 @@ struct POSTransaction: Identifiable, Codable {
 
     private enum CodingKeys: String, CodingKey {
         case id, companyID, posBankID, customerName
-        case principalAmount, posAmount, commissionRate, commissionAmount
+        case principalAmount, posAmount, commissionRate, customerRate, bankCommissionRate, commissionAmount
         case netBankAmount, grossProfitAmount, profitAmount, fundingSources
         case installmentCount, status, transactionDate, settlementDate, note
     }
@@ -49,7 +53,8 @@ struct POSTransaction: Identifiable, Codable {
     init(
         id: UUID = UUID(), companyID: UUID, posBankID: UUID,
         customerName: String, principalAmount: Double, posAmount: Double,
-        commissionRate: Double, commissionAmount: Double,
+        commissionRate: Double, customerRate: Double = 0,
+        bankCommissionRate: Double? = nil, commissionAmount: Double,
         netBankAmount: Double, grossProfitAmount: Double? = nil,
         profitAmount: Double, fundingSources: [POSFundingSource] = [],
         installmentCount: Int, status: POSTransactionStatus,
@@ -63,6 +68,8 @@ struct POSTransaction: Identifiable, Codable {
         self.principalAmount = principalAmount
         self.posAmount = posAmount
         self.commissionRate = commissionRate
+        self.customerRate = customerRate
+        self.bankCommissionRate = bankCommissionRate ?? commissionRate
         self.commissionAmount = commissionAmount
         self.netBankAmount = netBankAmount
         self.grossProfitAmount = grossProfitAmount ?? (posAmount - principalAmount)
@@ -84,6 +91,12 @@ struct POSTransaction: Identifiable, Codable {
         principalAmount = try container.decode(Double.self, forKey: .principalAmount)
         posAmount = try container.decode(Double.self, forKey: .posAmount)
         commissionRate = try container.decode(Double.self, forKey: .commissionRate)
+        bankCommissionRate = try container.decodeIfPresent(
+            Double.self, forKey: .bankCommissionRate
+        ) ?? commissionRate
+        customerRate = try container.decodeIfPresent(
+            Double.self, forKey: .customerRate
+        ) ?? (principalAmount > 0 ? ((posAmount / principalAmount) - 1) * 100 : 0)
         commissionAmount = try container.decode(Double.self, forKey: .commissionAmount)
         netBankAmount = try container.decode(Double.self, forKey: .netBankAmount)
         grossProfitAmount = try container.decodeIfPresent(

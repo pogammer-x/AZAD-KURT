@@ -124,7 +124,6 @@ struct CompanyDetailView: View {
                 editingTransaction: transaction,
                 onSave: { updatedTransaction in
                     updateTransaction(updatedTransaction)
-                    editingTransaction = nil
                 }
             )
         }
@@ -686,12 +685,16 @@ func transactionRow(
                     .fontWeight(.bold)
                 
                 Text(
-                    "Komisyon Oranı: %" +
+                    "Banka Komisyon Oranı: %" +
                     rateText(
-                        transaction.commissionRate
+                        transaction.bankCommissionRate
                     )
                 )
                 
+                Text(
+                    "Müşteri Oranı: %" + rateText(transaction.customerRate)
+                )
+
                 Text(
                     transaction.installmentCount == 1
                     ? "Tek Çekim"
@@ -732,13 +735,13 @@ func transactionRow(
 
 func updateTransaction(
     _ updated: POSTransaction
-) {
-    switch store.updatePOSTransactionSafely(updated) {
-    case .success:
+) -> FinancialOperationResult {
+    let result = store.updatePOSTransactionSafely(updated)
+    if case .success = result {
         refreshFinancialData()
-    case .failure(let message):
-        showFinancialFailure(message)
+        editingTransaction = nil
     }
+    return result
 }
 
 
@@ -759,14 +762,13 @@ func deleteTransaction(
 
 func handleCreateTransaction(
     _ transaction: POSTransaction
-) {
-    switch store.createPOSTransaction(transaction) {
-    case .success:
+) -> FinancialOperationResult {
+    let result = store.createPOSTransaction(transaction)
+    if case .success = result {
         refreshFinancialData()
         showNewPOSTransaction = false
-    case .failure(let message):
-        showFinancialFailure(message)
     }
+    return result
 }
 
 
@@ -1050,10 +1052,10 @@ struct BalanceAdjustmentView: View {
             .pickerStyle(.segmented)
 
             TextField("Tutar", text: $amountText)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
 
             TextField("Açıklama (zorunlu)", text: $description)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
 
             HStack {
                 Text("Yeni Bakiye")

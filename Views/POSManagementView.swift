@@ -206,10 +206,12 @@ struct POSManagementView: View {
                 if transaction.status == .pending {
                     Button("Düzenle") { editingTransaction = transaction }
                     Button("Netleştir") { settle(transaction) }
-                        .buttonStyle(.borderedProminent)
-                    Button("İptal Et", role: .destructive) { cancel(transaction) }
+                        .buttonStyle(DefaultButtonStyle())
+                    Button("İptal Et") { cancel(transaction) }
+                        .foregroundColor(.red)
                 } else if transaction.status == .settled {
-                    Button("İptal Et", role: .destructive) { cancel(transaction) }
+                    Button("İptal Et") { cancel(transaction) }
+                        .foregroundColor(.red)
                 }
             }
         }
@@ -282,16 +284,20 @@ struct POSManagementView: View {
         }
     }
 
-    func handleCreate(_ transaction: POSTransaction) {
-        handle(store.createPOSTransaction(transaction)) {
+    func handleCreate(_ transaction: POSTransaction) -> FinancialOperationResult {
+        let result = store.createPOSTransaction(transaction)
+        if case .success = result {
             newTransactionCompany = nil
         }
+        return result
     }
 
-    func handleUpdate(_ transaction: POSTransaction) {
-        handle(store.updatePOSTransactionSafely(transaction)) {
+    func handleUpdate(_ transaction: POSTransaction) -> FinancialOperationResult {
+        let result = store.updatePOSTransactionSafely(transaction)
+        if case .success = result {
             editingTransaction = nil
         }
+        return result
     }
 
     func settle(_ transaction: POSTransaction) {
