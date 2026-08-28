@@ -77,59 +77,18 @@ struct ReceivablesView: View {
             } else {
 
                 List {
-
-                    ForEach(store.receivables) { receivable in     VStack(spacing: 6) {
-                        
-                        Button("Düzenle") {
-                            editingReceivable = receivable
-                        }
-                    
-
-                        Button("Sil") {
-                            deletingReceivable = receivable
-                        }
-                    }
-                        HStack {
-
+                    ForEach(store.receivables) { receivable in
+                        HStack(spacing: 20) {
                             VStack(alignment: .leading, spacing: 5) {
-
                                 Text(receivable.debtorName)
                                     .fontWeight(.semibold)
-
                                 Text(receivable.reason)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                            }
-
-                            Spacer()
-
-                            VStack(alignment: .trailing, spacing: 5) {
-
-                                Text(
-                                    currencyText(
-                                        InterestCalculator.receivableCurrentAmount(receivable)
-                                    )
-                                )                                    .fontWeight(.bold)
-
-                                Text(
-                                    "Ödenen: " +
-                                    currencyText(receivable.totalPaid)
-                                )
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding(.vertical, 5)
-                    }
-                    ForEach(store.receivables) { receivable in
-
-                        HStack(spacing: 20) {
-
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(receivable.debtorName)
-                                    .fontWeight(.semibold)
-
-                                Text(receivable.reason)
+                                Text(receivable.reference)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                Text(store.company(for: receivable.companyID)?.name ?? "Bilinmeyen Şirket")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -147,39 +106,22 @@ struct ReceivablesView: View {
                                 )
                                 .fontWeight(.bold)
 
-                                Text(
-                                    "Ödenen: " +
-                                    currencyText(receivable.totalPaid)
-                                )
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                                Text("Ödenen: " + currencyText(receivable.totalPaid))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
 
                             VStack(spacing: 6) {
-                                Button("Düzenle") {
-                                    editingReceivable = receivable
-                                }
-
-                                Button("Ödeme Ekle") {
-                                    paymentReceivable = receivable
-                                }
-
-                                Button("Sil") {
-                                    deletingReceivable = receivable
-                                }
+                                Button("Düzenle") { editingReceivable = receivable }
+                                Button("Ödeme Ekle") { paymentReceivable = receivable }
+                                    .disabled(receivable.status == .cancelled)
+                                Button("İptal Et") { deletingReceivable = receivable }
+                                    .disabled(receivable.status == .cancelled)
                             }
                         }
-                        .padding(.vertical, 5)
-                        .padding(18)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(Color.primary.opacity(0.06))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-                        )
-                    }                }
+                        .padding(.vertical, 6)
+                    }
+                }
             }
         }
         .padding(25)
@@ -191,13 +133,21 @@ struct ReceivablesView: View {
         .sheet(item: $editingReceivable) { receivable in
             EditReceivableView(receivable: receivable)
                 .environmentObject(store)
-        }        .alert(item: $deletingReceivable) { receivable in
+        }
+        .sheet(item: $paymentReceivable) { receivable in
+            AddReceivablePaymentView(receivable: receivable)
+                .environmentObject(store)
+        }
+        .alert(item: $deletingReceivable) { receivable in
             Alert(
-                title: Text("Alacağı Sil"),
-                message: Text("\(receivable.debtorName) kaydını silmek istiyor musunuz?"),
-                primaryButton: .destructive(Text("Sil")) {
-                    store.receivables.removeAll {
-                        $0.id == receivable.id
+                title: Text("Alacağı İptal Et"),
+                message: Text("\(receivable.debtorName) kaydını iptal etmek istiyor musunuz?"),
+                primaryButton: .destructive(Text("İptal Et")) {
+                    if let index = store.receivables.firstIndex(
+                        where: { $0.id == receivable.id }
+                    ) {
+                        store.receivables[index].status = .cancelled
+                        store.receivables[index].updatedAt = Date()
                     }
                 },
                 secondaryButton: .cancel(Text("Vazgeç"))
@@ -207,7 +157,10 @@ struct ReceivablesView: View {
     var totalReceivables: Double {
 
         store.receivables.reduce(0) {
-            $0 + InterestCalculator.receivableCurrentAmount($1)
+            $0 + InterestCalculator.receivableCurrentAmount(
+                $1,
+                payments: store.payments
+            )
         }
     }
     var activeReceivables: Double {
@@ -217,7 +170,10 @@ struct ReceivablesView: View {
                 $0.status == .active
             }
             .reduce(0) {
-                $0 + InterestCalculator.receivableCurrentAmount($1)
+                $0 + InterestCalculator.receivableCurrentAmount(
+                    $1,
+                    payments: store.payments
+                )
             }
     }
     var totalPaid: Double {
@@ -249,7 +205,7 @@ struct ReceivablesView: View {
         )
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color.primary.opacity(0.06))
+                .fill(AppTheme.cardElevated)
         )
     }
 

@@ -10,6 +10,8 @@ struct AddReceivablePaymentView: View {
 
     @State private var paymentAmount = ""
     @State private var note = ""
+    @State private var paymentID = UUID()
+    @State private var errorMessage: String?
 
     var body: some View {
 
@@ -108,12 +110,22 @@ struct AddReceivablePaymentView: View {
             minWidth: 500,
             minHeight: 400
         )
+        .alert(isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Alert(
+                title: Text("Tahsilat Kaydedilemedi"),
+                message: Text(errorMessage ?? "Bilinmeyen hata")
+            )
+        }
     }
 
     var currentAmount: Double {
 
         InterestCalculator.receivableCurrentAmount(
-            receivable
+            receivable,
+            payments: store.payments
         )
     }
 
@@ -133,23 +145,8 @@ struct AddReceivablePaymentView: View {
     }
 
     func savePayment() {
-
-        guard let index =
-            store.receivables.firstIndex(
-                where: {
-                    $0.id == receivable.id
-                }
-            )
-        else {
-            return
-        }
-
-        store.receivables[index].totalPaid +=
-            paymentValue
-
-        store.receivables[index].updatedAt =
-            Date()
         let newPayment = Payment(
+            id: paymentID,
             companyID: receivable.companyID,
             receivableID: receivable.id,
             payerName: receivable.debtorName,
@@ -159,18 +156,12 @@ struct AddReceivablePaymentView: View {
             createdBy: "Kullanıcı",
             note: note
         )
-
-        store.payments.append(newPayment)
-        if InterestCalculator
-            .receivableCurrentAmount(
-                store.receivables[index]
-            ) <= 0 {
-
-            store.receivables[index].status =
-                .paid
+        switch store.recordReceivablePayment(newPayment) {
+        case .success:
+            presentationMode.wrappedValue.dismiss()
+        case .failure(let message):
+            errorMessage = message
         }
-
-        presentationMode.wrappedValue.dismiss()
     }
 
     func currencyText(

@@ -15,24 +15,30 @@ struct CompanyDetailView: View {
     
     @State private var editingBank: POSBank? = nil
     @State private var showEditPOSBank = false
+    @State private var financialErrorMessage = ""
+    @State private var showFinancialError = false
+    @State private var balanceAdjustmentTarget: BalanceAdjustmentTarget?
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            headerSection
-            
-            Divider()
-            
-            bankHeaderSection
-            bankListSection
-            
-            Divider()
-            
-            transactionHeaderSection
-            transactionListSection
-            
-            Spacer()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                headerSection
+
+                financeSection
+                movementHistorySection
+
+                Divider()
+
+                bankHeaderSection
+                bankListSection
+
+                Divider()
+
+                transactionHeaderSection
+                transactionListSection
+            }
+            .padding(25)
         }
-        .padding(25)
         
         .onAppear {
             posBanks = store.posBanks.filter {
@@ -79,17 +85,32 @@ struct CompanyDetailView: View {
                 }
             )
         }
+
+        .sheet(item: $balanceAdjustmentTarget) { target in
+            BalanceAdjustmentView(
+                target: target,
+                onSave: { newBalance, description in
+                    handleBalanceAdjustment(
+                        target: target,
+                        newBalance: newBalance,
+                        description: description
+                    )
+                },
+                onCancel: {
+                    balanceAdjustmentTarget = nil
+                }
+            )
+        }
         
         // YENİ POS İŞLEMİ
         .sheet(isPresented: $showNewPOSTransaction) {
             POSTransactionView(
                 company: company,
                 posBanks: posBanks,
+                fundingCompanies: store.companies,
                 editingTransaction: nil,
                 onSave: { newTransaction in
-                    posTransactions.append(newTransaction)
-                    store.posTransactions.append(newTransaction)
-                    showNewPOSTransaction = false
+                    handleCreateTransaction(newTransaction)
                 }
             )
         }
@@ -99,6 +120,7 @@ struct CompanyDetailView: View {
             POSTransactionView(
                 company: company,
                 posBanks: posBanks,
+                fundingCompanies: store.companies,
                 editingTransaction: transaction,
                 onSave: { updatedTransaction in
                     updateTransaction(updatedTransaction)
@@ -112,18 +134,25 @@ struct CompanyDetailView: View {
             item: $deletingTransaction
         ) { transaction in
             Alert(
-                title: Text("POS İşlemini Sil"),
+                title: Text("POS İşlemini İptal Et"),
                 message: Text(
-                    "\(transaction.customerName) adına kayıtlı \(money(transaction.posAmount)) tutarındaki işlemi silmek istediğinize emin misiniz?"
+                    "\(transaction.customerName) adına kayıtlı \(money(transaction.posAmount)) tutarındaki işlemi iptal etmek istediğinize emin misiniz?"
                 ),
                 primaryButton: .destructive(
-                    Text("Sil")
+                    Text("İptal Et")
                 ) {
                     deleteTransaction(transaction)
                 },
                 secondaryButton: .cancel(
                     Text("Vazgeç")
                 )
+            )
+        }
+        .alert(isPresented: $showFinancialError) {
+            Alert(
+                title: Text("Finansal İşlem Hatası"),
+                message: Text(financialErrorMessage),
+                dismissButton: .default(Text("Tamam"))
             )
         }
     }
@@ -143,6 +172,180 @@ struct CompanyDetailView: View {
             Text("Şirket Yönetim Paneli")
                 .foregroundColor(.secondary)
         }
+    }
+
+
+    var currentCompany: Company {
+        store.company(for: company.id) ?? company
+    }
+
+
+    var companyMovements: [BalanceTransaction] {
+        store.balanceTransactions
+            .filter { $0.companyID == company.id }
+            .sorted { $0.date > $1.date }
+    }
+
+
+    var financeSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Finans")
+                .font(.title2)
+                .fontWeight(.bold)
+
+            LazyVGrid(
+                columns: [
+                    GridItem(.adaptive(minimum: 260), spacing: 14)
+                ],
+                spacing: 14
+            ) {
+                balanceCard(
+                    title: "Kullanılabilir Şirket Bakiyesi",
+                    subtitle: currentCompany.name,
+                    balance: currentCompany.balance,
+                    icon: "building.2.fill",
+                    action: {
+                        balanceAdjustmentTarget = .company(currentCompany)
+                    }
+                )
+
+                ForEach(posBanks) { bank in
+                    balanceCard(
+                        title: "POS Banka Bakiyesi",
+                        subtitle: bank.bankName,
+                        balance: bank.balance,
+                        icon: "creditcard.fill",
+                        action: {
+                            balanceAdjustmentTarget = .bank(bank)
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+
+    func balanceCard(
+        title: String,
+        subtitle: String,
+        balance: Double,
+        icon: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.title2)
+
+                Spacer()
+
+                Button("Düzenle", action: action)
+                    .buttonStyle(.bordered)
+            }
+
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Text(subtitle)
+                .font(.headline)
+
+            Text(turkishTL(balance))
+                .font(.title2)
+                .fontWeight(.bold)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(AppTheme.cardElevated)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(AppTheme.border, lineWidth: 1)
+        )
+    }
+
+
+    var movementHistorySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Hareket Geçmişi")
+                    .font(.title2)
+                    .fontWeight(.bold)
+
+                Spacer()
+
+                Text("\(companyMovements.count) hareket")
+                    .foregroundColor(.secondary)
+            }
+
+            if companyMovements.isEmpty {
+                Text("Henüz finansal hareket bulunmuyor.")
+                    .foregroundColor(.secondary)
+                    .padding(.vertical, 12)
+            } else {
+                LazyVStack(spacing: 10) {
+                    ForEach(companyMovements) { movement in
+                        movementRow(movement)
+                    }
+                }
+            }
+        }
+    }
+
+
+    func movementRow(
+        _ movement: BalanceTransaction
+    ) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(
+                systemName: movement.amount >= 0
+                    ? "arrow.down.circle.fill"
+                    : "arrow.up.circle.fill"
+            )
+            .font(.title2)
+            .foregroundColor(movement.amount >= 0 ? AppTheme.positive : AppTheme.negative)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(movementTitle(movement))
+                    .fontWeight(.semibold)
+
+                Text(movement.description)
+                    .foregroundColor(.secondary)
+
+                if let bankID = movement.posBankID {
+                    Text("Hesap: \(bankNameFor(bankID))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Text(movementDateText(movement.date))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 5) {
+                Text(signedTurkishTL(movement.amount))
+                    .font(.headline)
+                    .foregroundColor(movement.amount >= 0 ? AppTheme.positive : AppTheme.negative)
+
+                Text("Önceki: \(turkishTL(movement.oldBalance))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Text("Sonraki: \(turkishTL(movement.newBalance))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(AppTheme.card)
+        )
     }
     
     
@@ -313,12 +516,12 @@ struct CompanyDetailView: View {
                         )
                         .background(
                             RoundedRectangle(cornerRadius: 18)
-                                .fill(Color.primary.opacity(0.06))
+                                .fill(AppTheme.cardElevated)
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 18)
                                 .stroke(
-                                    Color.primary.opacity(0.10),
+                                    AppTheme.border,
                                     lineWidth: 1
                                 )
                         )
@@ -511,12 +714,9 @@ func transactionRow(
                 }
                 
                 Button("Hesaba Geçti") {
-                    var updated = transaction
-                    updated.status = .settled
-                    updated.settlementDate = Date()
-                    updateTransaction(updated)
+                    settleTransaction(transaction)
                 }
-                Button("Sil") {
+                Button("İptal Et") {
                     
                     deletingTransaction =
                     transaction
@@ -533,19 +733,11 @@ func transactionRow(
 func updateTransaction(
     _ updated: POSTransaction
 ) {
-    
-    if let index =
-        posTransactions.firstIndex(
-            where: {
-                $0.id == updated.id
-            }
-        ) {
-        
-        posTransactions[index] =
-        
-        updated
-        store.updatePOSTransaction(updated)
-        
+    switch store.updatePOSTransactionSafely(updated) {
+    case .success:
+        refreshFinancialData()
+    case .failure(let message):
+        showFinancialFailure(message)
     }
 }
 
@@ -555,16 +747,136 @@ func updateTransaction(
 func deleteTransaction(
     _ transaction: POSTransaction
 ) {
-    store.posTransactions.removeAll {
-        $0.id == transaction.id
+    switch store.cancelPOSTransaction(transaction.id) {
+    case .success:
+        refreshFinancialData()
+    case .failure(let message):
+        showFinancialFailure(message)
     }
-    posTransactions.removeAll {
-        
-        $0.id == transaction.id
-    }
-    
     deletingTransaction = nil
-    
+}
+
+
+func handleCreateTransaction(
+    _ transaction: POSTransaction
+) {
+    switch store.createPOSTransaction(transaction) {
+    case .success:
+        refreshFinancialData()
+        showNewPOSTransaction = false
+    case .failure(let message):
+        showFinancialFailure(message)
+    }
+}
+
+
+func settleTransaction(
+    _ transaction: POSTransaction
+) {
+    switch store.settlePOSTransaction(transaction.id) {
+    case .success:
+        refreshFinancialData()
+    case .failure(let message):
+        showFinancialFailure(message)
+    }
+}
+
+
+func refreshFinancialData() {
+    posBanks = store.posBanks.filter {
+        $0.companyID == company.id
+    }
+    posTransactions = store.posTransactions.filter {
+        $0.companyID == company.id
+    }
+}
+
+
+func showFinancialFailure(_ message: String) {
+    financialErrorMessage = message
+    showFinancialError = true
+}
+
+
+func handleBalanceAdjustment(
+    target: BalanceAdjustmentTarget,
+    newBalance: Double,
+    description: String
+) {
+    let result: FinancialOperationResult
+
+    switch target {
+    case .company(let targetCompany):
+        result = store.adjustCompanyBalance(
+            companyID: targetCompany.id,
+            newBalance: newBalance,
+            description: description
+        )
+    case .bank(let bank):
+        result = store.adjustPOSBankBalance(
+            bankID: bank.id,
+            newBalance: newBalance,
+            description: description
+        )
+    }
+
+    switch result {
+    case .success:
+        refreshFinancialData()
+        balanceAdjustmentTarget = nil
+    case .failure(let message):
+        showFinancialFailure(message)
+    }
+}
+
+
+func movementTitle(
+    _ movement: BalanceTransaction
+) -> String {
+    switch movement.type {
+    case .manualAdjustment:
+        return movement.posBankID == nil
+            ? "Manuel Şirket Bakiye Düzenlemesi"
+            : "Manuel POS Banka Bakiye Düzenlemesi"
+    case .capitalContribution:
+        return "Ana Para Ekleme"
+    case .capitalWithdrawal:
+        return "Ana Para Çıkarma"
+    case .income:
+        return "Gelir"
+    case .expense:
+        return "Gider"
+    case .posPrincipalDebit:
+        return "Ana Para Çıkışı"
+    case .posPrincipalRefund:
+        return "POS İptal / Ana Para İadesi"
+    case .posSettlementCredit:
+        return "POS Netleşme"
+    }
+}
+
+
+func movementDateText(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "tr_TR")
+    formatter.dateFormat = "dd.MM.yyyy HH:mm"
+    return formatter.string(from: date)
+}
+
+
+func turkishTL(_ value: Double) -> String {
+    let formatter = NumberFormatter()
+    formatter.numberStyle = .decimal
+    formatter.locale = Locale(identifier: "tr_TR")
+    formatter.minimumFractionDigits = 0
+    formatter.maximumFractionDigits = 2
+    return "\(formatter.string(from: NSNumber(value: value)) ?? "0") TL"
+}
+
+
+func signedTurkishTL(_ value: Double) -> String {
+    let prefix = value > 0 ? "+" : ""
+    return prefix + turkishTL(value)
 }
 
 
@@ -631,6 +943,153 @@ func rateText(
         format: "%.2f",
         value
     )
+}
+
+
+enum BalanceAdjustmentTarget: Identifiable {
+    case company(Company)
+    case bank(POSBank)
+
+    var id: String {
+        switch self {
+        case .company(let company):
+            return "company-\(company.id.uuidString)"
+        case .bank(let bank):
+            return "bank-\(bank.id.uuidString)"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .company(let company):
+            return company.name
+        case .bank(let bank):
+            return bank.bankName
+        }
+    }
+
+    var currentBalance: Double {
+        switch self {
+        case .company(let company):
+            return company.balance
+        case .bank(let bank):
+            return bank.balance
+        }
+    }
+}
+
+
+enum BalanceAdjustmentMode: String, CaseIterable, Identifiable {
+    case increase = "Artır"
+    case decrease = "Azalt"
+    case set = "Yeni Bakiye"
+
+    var id: String { rawValue }
+}
+
+
+struct BalanceAdjustmentView: View {
+    let target: BalanceAdjustmentTarget
+    let onSave: (Double, String) -> Void
+    let onCancel: () -> Void
+
+    @State private var mode: BalanceAdjustmentMode = .increase
+    @State private var amountText = ""
+    @State private var description = ""
+
+    var amount: Double {
+        let clean = amountText
+            .replacingOccurrences(of: ".", with: "")
+            .replacingOccurrences(of: ",", with: ".")
+        return Double(clean) ?? 0
+    }
+
+    var newBalance: Double {
+        switch mode {
+        case .increase:
+            return target.currentBalance + amount
+        case .decrease:
+            return target.currentBalance - amount
+        case .set:
+            return amount
+        }
+    }
+
+    func formattedTL(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.locale = Locale(identifier: "tr_TR")
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 2
+        return "\(formatter.string(from: NSNumber(value: value)) ?? "0") TL"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Bakiye Düzenle")
+                .font(.title)
+                .fontWeight(.bold)
+
+            Text(target.title)
+                .foregroundColor(.secondary)
+
+            Divider()
+
+            HStack {
+                Text("Mevcut Bakiye")
+                Spacer()
+                Text(formattedTL(target.currentBalance))
+                    .fontWeight(.bold)
+            }
+
+            Picker("İşlem", selection: $mode) {
+                ForEach(BalanceAdjustmentMode.allCases) { option in
+                    Text(option.rawValue).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            TextField("Tutar", text: $amountText)
+                .textFieldStyle(.roundedBorder)
+
+            TextField("Açıklama (zorunlu)", text: $description)
+                .textFieldStyle(.roundedBorder)
+
+            HStack {
+                Text("Yeni Bakiye")
+                Spacer()
+                Text(formattedTL(newBalance))
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .foregroundColor(newBalance >= 0 ? .primary : .red)
+            }
+
+            Divider()
+
+            HStack {
+                Button("Vazgeç", action: onCancel)
+                Spacer()
+                Button("Kaydet") {
+                    onSave(
+                        newBalance,
+                        description.trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        )
+                    )
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(
+                    amount <= 0 ||
+                    newBalance < 0 ||
+                    description.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                    ).isEmpty
+                )
+            }
+        }
+        .padding(24)
+        .frame(width: 480)
+    }
 }
 
 

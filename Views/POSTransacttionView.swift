@@ -4,14 +4,15 @@ struct POSTransactionView: View {
 
     let company: Company
     let posBanks: [POSBank]
+    let fundingCompanies: [Company]
     let editingTransaction: POSTransaction?
     let onSave: (POSTransaction) -> Void
 
     @State private var selectedBankIndex: Int
     @State private var customerName: String
-    @State private var principalText: String
     @State private var posText: String
     @State private var installmentCount: Int
+    @State private var fundingSources: [POSFundingSource]
 
     @State private var useCustomRate: Bool
     @State private var customRateText: String
@@ -19,12 +20,14 @@ struct POSTransactionView: View {
     init(
         company: Company,
         posBanks: [POSBank],
+        fundingCompanies: [Company],
         editingTransaction: POSTransaction? = nil,
         onSave: @escaping (POSTransaction) -> Void
     ) {
 
         self.company = company
         self.posBanks = posBanks
+        self.fundingCompanies = fundingCompanies
         self.editingTransaction = editingTransaction
         self.onSave = onSave
 
@@ -50,13 +53,19 @@ struct POSTransactionView: View {
                     editingTransaction?.customerName ?? ""
             )
 
-        _principalText =
-            State(
-                initialValue:
-                    POSTransactionView.initialMoney(
-                        editingTransaction?.principalAmount
-                    )
-            )
+        let initialFundingSources: [POSFundingSource]
+        if let sources = editingTransaction?.fundingSources,
+           !sources.isEmpty {
+            initialFundingSources = sources
+        } else {
+            initialFundingSources = [
+                POSFundingSource(
+                    companyID: company.id,
+                    amount: editingTransaction?.principalAmount ?? 0
+                )
+            ]
+        }
+        _fundingSources = State(initialValue: initialFundingSources)
 
         _posText =
             State(
@@ -160,7 +169,8 @@ struct POSTransactionView: View {
                 .disabled(
                     customerName.isEmpty ||
                     principal <= 0 ||
-                    posAmount <= 0
+                    posAmount <= 0 ||
+                    fundingSources.contains { $0.amount <= 0 }
                 )
                 .padding(20)
             }
@@ -239,13 +249,45 @@ struct POSTransactionView: View {
             Text("Verilen Ana Para")
                 .font(.headline)
 
-            TextField(
-                "Örn: 200.000",
-                text: principalBinding
-            )
-            .textFieldStyle(
-                RoundedBorderTextFieldStyle()
-            )
+            ForEach($fundingSources) { $source in
+                HStack {
+                    Picker("Kaynak Şirket", selection: $source.companyID) {
+                        ForEach(fundingCompanies) { fundingCompany in
+                            Text(fundingCompany.name)
+                                .tag(fundingCompany.id)
+                        }
+                    }
+
+                    TextField(
+                        "Tutar",
+                        text: fundingAmountBinding(for: source.id)
+                    )
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+
+                    if fundingSources.count > 1 {
+                        Button {
+                            fundingSources.removeAll { $0.id == source.id }
+                        } label: {
+                            Image(systemName: "minus.circle")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            Button {
+                fundingSources.append(
+                    POSFundingSource(
+                        companyID: company.id,
+                        amount: 0
+                    )
+                )
+            } label: {
+                Label("Kaynak Ekle", systemImage: "plus.circle")
+            }
+
+            Text("Toplam Ana Para: \(money(principal))")
+                .fontWeight(.semibold)
 
             Text("POS'a Girilen Tutar")
                 .font(.headline)
@@ -369,6 +411,11 @@ struct POSTransactionView: View {
             )
 
             resultRow(
+                title: "Brüt Kâr",
+                value: grossProfitAmount
+            )
+
+            resultRow(
                 title: "Bankadan Net Gelecek",
                 value: netBankAmount
             )
@@ -385,23 +432,6 @@ struct POSTransactionView: View {
 
     // MARK: - OTOMATİK PARA YAZIMI
 
-    var principalBinding: Binding<String> {
-
-        Binding<String>(
-            get: {
-                principalText
-            },
-            set: { newValue in
-
-                principalText =
-                    formatMoneyInput(
-                        newValue
-                    )
-            }
-        )
-    }
-
-
     var posBinding: Binding<String> {
 
         Binding<String>(
@@ -414,6 +444,34 @@ struct POSTransactionView: View {
                     formatMoneyInput(
                         newValue
                     )
+            }
+        )
+    }
+
+
+    func fundingAmountBinding(
+        for sourceID: UUID
+    ) -> Binding<String> {
+        Binding<String>(
+            get: {
+                guard let source = fundingSources.first(
+                    where: { $0.id == sourceID }
+                ) else {
+                    return ""
+                }
+
+                return source.amount > 0
+                    ? formatMoneyInput(String(Int(source.amount)))
+                    : ""
+            },
+            set: { newValue in
+                guard let index = fundingSources.firstIndex(
+                    where: { $0.id == sourceID }
+                ) else {
+                    return
+                }
+
+                fundingSources[index].amount = convertMoney(newValue)
             }
         )
     }
@@ -497,10 +555,9 @@ struct POSTransactionView: View {
     // MARK: - HESAPLAMA
 
     var principal: Double {
-
-        return convertMoney(
-            principalText
-        )
+        fundingSources.reduce(0) {
+            $0 + $1.amount
+        }
     }
 
 
@@ -513,24 +570,31 @@ struct POSTransactionView: View {
 
 
     var commissionAmount: Double {
-
-        return posAmount *
-            currentRate /
-            100
+        calculation.commissionAmount
     }
 
 
     var netBankAmount: Double {
+        calculation.netBankAmount
+    }
 
-        return posAmount -
-            commissionAmount
+
+    var grossProfitAmount: Double {
+        calculation.grossProfitAmount
     }
 
 
     var profitAmount: Double {
+        calculation.profitAmount
+    }
 
-        return netBankAmount -
-            principal
+
+    var calculation: POSCalculationResult {
+        POSCalculator.calculate(
+            fundingSources: fundingSources,
+            posAmount: posAmount,
+            commissionRate: currentRate
+        )
     }
 
 
@@ -561,7 +625,9 @@ struct POSTransactionView: View {
                 commissionRate: currentRate,
                 commissionAmount: commissionAmount,
                 netBankAmount: netBankAmount,
+                grossProfitAmount: grossProfitAmount,
                 profitAmount: profitAmount,
+                fundingSources: fundingSources,
                 installmentCount: installmentCount,
                 status: .pending
             )

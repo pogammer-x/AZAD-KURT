@@ -11,6 +11,8 @@ struct azadoglu_managerApp: App {
 
             LoginGateView()
                 .environmentObject(store)
+                .preferredColorScheme(.dark)
+                .accentColor(AppTheme.accent)
                 .frame(
                     minWidth: 1000,
                     minHeight: 650

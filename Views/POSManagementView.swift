@@ -1,323 +1,357 @@
 import SwiftUI
 
 struct POSManagementView: View {
-    @State private var showNewPOSTransaction = false
+    @EnvironmentObject var store: AppStore
+
+    @State private var statusFilter: POSStatusFilter = .pending
+    @State private var dateFilter: POSDateFilter = .all
+    @State private var selectedCompanyID: UUID?
+    @State private var selectedBankID: UUID?
+    @State private var customStartDate = Date()
+    @State private var customEndDate = Date()
+
+    @State private var newTransactionCompany: Company?
+    @State private var editingTransaction: POSTransaction?
+    @State private var errorMessage = ""
+    @State private var showError = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-
-            // ÜST BAŞLIK
-            HStack {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("POS İşlemleri")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-
-                    Text("Tüm POS hareketlerinizi tek ekrandan yönetin.")
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                Button {
-                    showNewPOSTransaction = true
-                } label: {
-                    Label("Yeni POS İşlemi", systemImage: "plus")
-                }
-                .sheet(isPresented: $showNewPOSTransaction) {
-                    NewPOSFormView(
-                        isPresented: $showNewPOSTransaction
-                    )
-                }
-            }
-
+        VStack(alignment: .leading, spacing: 18) {
+            headerSection
+            summarySection
+            filterSection
             Divider()
 
-            // ÖZET KARTLARI
-            HStack(spacing: 16) {
-                summaryCard(
-                    title: "Bekleyen POS",
-                    amount: "₺0,00",
-                    icon: "clock.fill"
-                )
-
-                summaryCard(
-                    title: "Bugünkü POS",
-                    amount: "₺0,00",
-                    icon: "creditcard.fill"
-                )
-
-                summaryCard(
-                    title: "Banka Kesintisi",
-                    amount: "₺0,00",
-                    icon: "percent"
-                )
-
-                summaryCard(
-                    title: "Net Kasaya Geçecek",
-                    amount: "₺0,00",
-                    icon: "banknote.fill"
-                )
+            if filteredTransactions.isEmpty {
+                emptySection
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(filteredTransactions) { transaction in
+                            transactionCard(transaction)
+                        }
+                    }
+                }
             }
-
-            Divider()
-
-            // BOŞ DURUM
-            VStack(spacing: 14) {
-                Image(systemName: "creditcard")
-                    .font(.system(size: 42))
-                    .foregroundColor(.secondary)
-
-                Text("Henüz POS işlemi bulunmuyor")
-                    .font(.title3)
-                    .fontWeight(.semibold)
-
-                Text("Yeni POS İşlemi butonundan ilk işleminizi oluşturabilirsiniz.")
-                    .foregroundColor(.secondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(28)
+        .sheet(item: $newTransactionCompany) { company in
+            POSTransactionView(
+                company: company,
+                posBanks: store.banks(for: company.id),
+                fundingCompanies: store.companies,
+                onSave: { transaction in
+                    handleCreate(transaction)
+                }
+            )
+        }
+        .sheet(item: $editingTransaction) { transaction in
+            if let company = store.company(for: transaction.companyID) {
+                POSTransactionView(
+                    company: company,
+                    posBanks: store.banks(for: company.id),
+                    fundingCompanies: store.companies,
+                    editingTransaction: transaction,
+                    onSave: { updated in
+                        handleUpdate(updated)
+                    }
+                )
+            }
+        }
+        .alert(isPresented: $showError) {
+            Alert(
+                title: Text("POS İşlemi Hatası"),
+                message: Text(errorMessage),
+                dismissButton: .default(Text("Tamam"))
+            )
+        }
     }
 
-    private func summaryCard(
-        title: String,
-        amount: String,
-        icon: String
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.title3)
-
-                Spacer()
+    var headerSection: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("POS İşlemleri")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                Text("Bekleyen, netleşen ve iptal edilen POS hareketlerini yönetin.")
+                    .foregroundColor(.secondary)
             }
+            Spacer()
+            Button {
+                if let companyID = selectedCompanyID,
+                   let company = store.company(for: companyID) {
+                    newTransactionCompany = company
+                } else {
+                    newTransactionCompany = store.companies.first
+                }
+            } label: {
+                Label("Yeni POS İşlemi", systemImage: "plus")
+            }
+            .disabled(store.companies.isEmpty)
+        }
+    }
 
+    var summarySection: some View {
+        LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 180), spacing: 12)],
+            spacing: 12
+        ) {
+            summaryCard("Bekleyen Brüt", pendingGross, "clock.fill")
+            summaryCard("Bekleyen POS Neti", pendingNet, "hourglass")
+            summaryCard("Netleşen POS", settledNet, "checkmark.circle.fill")
+            summaryCard("Toplam Komisyon", activeCommission, "percent")
+            summaryCard("Gerçek Net Kâr", activeProfit, "chart.line.uptrend.xyaxis")
+        }
+    }
+
+    func summaryCard(_ title: String, _ amount: Double, _ icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Image(systemName: icon)
             Text(title)
-                .font(.subheadline)
+                .font(.caption)
                 .foregroundColor(.secondary)
-
-            Text(amount)
-                .font(.title2)
+            Text(currency(amount))
+                .font(.title3)
                 .fontWeight(.bold)
         }
-        .padding()
+        .padding(15)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.secondary.opacity(0.08))
-        )
-    }
-}
-
-
-// MARK: - YENİ POS İŞLEMİ
-
-struct NewPOSFormView: View {
-
-    @Binding var isPresented: Bool
-
-    @State private var company = ""
-    @State private var bank = ""
-    @State private var customer = ""
-    @State private var principalAmount = ""
-    @State private var posAmount = ""
-    @State private var commissionRate = ""
-    @State private var installmentCount = "1"
-    private var principalValue: Double {
-        parseNumber(principalAmount)
-    }
-    private var posValue: Double {
-        parseNumber(posAmount)
-    }
-    private var commissionValue: Double {
-        parseNumber(commissionRate)
-    }
-    private var bankDeduction: Double {
-        posValue * commissionValue / 100
-    }
-    private var netToCash: Double {
-        posValue - bankDeduction
+        .background(RoundedRectangle(cornerRadius: 12).fill(AppTheme.cardElevated))
     }
 
-    private func parseNumber(_ text: String) -> Double {
-        let cleaned = text
-            .replacingOccurrences(of: ".", with: "")
-            .replacingOccurrences(of: ",", with: ".")
-            .replacingOccurrences(of: "₺", with: "")
-            .replacingOccurrences(of: "%", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+    var filterSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Picker("Durum", selection: $statusFilter) {
+                ForEach(POSStatusFilter.allCases) { filter in
+                    Text(filter.title).tag(filter)
+                }
+            }
+            .pickerStyle(.segmented)
 
-        return Double(cleaned) ?? 0
+            HStack {
+                Picker("Tarih", selection: $dateFilter) {
+                    ForEach(POSDateFilter.allCases) { filter in
+                        Text(filter.title).tag(filter)
+                    }
+                }
+
+                Picker("Şirket", selection: $selectedCompanyID) {
+                    Text("Tüm Şirketler").tag(nil as UUID?)
+                    ForEach(store.companies) { company in
+                        Text(company.name).tag(company.id as UUID?)
+                    }
+                }
+
+                Picker("POS Bankası", selection: $selectedBankID) {
+                    Text("Tüm Bankalar").tag(nil as UUID?)
+                    ForEach(availableBanks) { bank in
+                        Text(bank.bankName).tag(bank.id as UUID?)
+                    }
+                }
+            }
+
+            if dateFilter == .custom {
+                HStack {
+                    DatePicker("Başlangıç", selection: $customStartDate, displayedComponents: .date)
+                    DatePicker("Bitiş", selection: $customEndDate, displayedComponents: .date)
+                }
+            }
+        }
     }
 
-    private func currency(_ value: Double) -> String {
+    var emptySection: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            Image(systemName: "creditcard")
+                .font(.system(size: 42))
+                .foregroundColor(.secondary)
+            Text("Seçili filtrelerde POS işlemi bulunmuyor")
+                .font(.headline)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    func transactionCard(_ transaction: POSTransaction) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(transaction.reference) · \(transaction.customerName)")
+                        .font(.headline)
+                    Text("\(companyName(transaction.companyID)) · \(store.bankName(for: transaction.posBankID))")
+                        .foregroundColor(.secondary)
+                    Text(dateText(transaction.transactionDate))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                statusBadge(transaction.status)
+            }
+
+            Divider()
+
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 130), spacing: 12)],
+                spacing: 8
+            ) {
+                valueCell("Brüt", transaction.posAmount)
+                valueCell("Ana Para", transaction.principalAmount)
+                valueCell("Komisyon", transaction.commissionAmount)
+                valueCell("POS Neti", transaction.netBankAmount)
+                valueCell("Net Kâr", transaction.profitAmount)
+            }
+
+            HStack {
+                Spacer()
+                if transaction.status == .pending {
+                    Button("Düzenle") { editingTransaction = transaction }
+                    Button("Netleştir") { settle(transaction) }
+                        .buttonStyle(.borderedProminent)
+                    Button("İptal Et", role: .destructive) { cancel(transaction) }
+                } else if transaction.status == .settled {
+                    Button("İptal Et", role: .destructive) { cancel(transaction) }
+                }
+            }
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 14).fill(AppTheme.card))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border))
+    }
+
+    func valueCell(_ title: String, _ value: Double) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).font(.caption).foregroundColor(.secondary)
+            Text(currency(value)).fontWeight(.semibold)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    func statusBadge(_ status: POSTransactionStatus) -> some View {
+        Text(statusTitle(status))
+            .font(.caption)
+            .fontWeight(.semibold)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(statusColor(status).opacity(0.16)))
+            .foregroundColor(statusColor(status))
+    }
+
+    var availableBanks: [POSBank] {
+        guard let companyID = selectedCompanyID else { return store.posBanks }
+        return store.banks(for: companyID)
+    }
+
+    var baseFilteredTransactions: [POSTransaction] {
+        store.posTransactions.filter { transaction in
+            (selectedCompanyID == nil || transaction.companyID == selectedCompanyID) &&
+            (selectedBankID == nil || transaction.posBankID == selectedBankID) &&
+            matchesDate(transaction.transactionDate)
+        }
+    }
+
+    var filteredTransactions: [POSTransaction] {
+        baseFilteredTransactions
+            .filter { statusFilter.matches($0.status) }
+            .sorted { $0.transactionDate > $1.transactionDate }
+    }
+
+    var activeSummaryTransactions: [POSTransaction] {
+        baseFilteredTransactions.filter { $0.status != .cancelled }
+    }
+
+    var pendingGross: Double { activeSummaryTransactions.filter { $0.status == .pending }.reduce(0) { $0 + $1.posAmount } }
+    var pendingNet: Double { activeSummaryTransactions.filter { $0.status == .pending }.reduce(0) { $0 + $1.netBankAmount } }
+    var settledNet: Double { activeSummaryTransactions.filter { $0.status == .settled }.reduce(0) { $0 + $1.netBankAmount } }
+    var activeCommission: Double { activeSummaryTransactions.reduce(0) { $0 + $1.commissionAmount } }
+    var activeProfit: Double { activeSummaryTransactions.reduce(0) { $0 + $1.profitAmount } }
+
+    func matchesDate(_ date: Date) -> Bool {
+        let calendar = Calendar.current
+        let now = Date()
+        switch dateFilter {
+        case .all: return true
+        case .today: return calendar.isDateInToday(date)
+        case .week: return calendar.dateInterval(of: .weekOfYear, for: now)?.contains(date) ?? false
+        case .month: return calendar.dateInterval(of: .month, for: now)?.contains(date) ?? false
+        case .year: return calendar.dateInterval(of: .year, for: now)?.contains(date) ?? false
+        case .custom:
+            let start = calendar.startOfDay(for: min(customStartDate, customEndDate))
+            let endDay = calendar.startOfDay(for: max(customStartDate, customEndDate))
+            let end = calendar.date(byAdding: .day, value: 1, to: endDay) ?? endDay
+            return date >= start && date < end
+        }
+    }
+
+    func handleCreate(_ transaction: POSTransaction) {
+        handle(store.createPOSTransaction(transaction)) {
+            newTransactionCompany = nil
+        }
+    }
+
+    func handleUpdate(_ transaction: POSTransaction) {
+        handle(store.updatePOSTransactionSafely(transaction)) {
+            editingTransaction = nil
+        }
+    }
+
+    func settle(_ transaction: POSTransaction) {
+        handle(store.settlePOSTransaction(transaction.id)) {}
+    }
+
+    func cancel(_ transaction: POSTransaction) {
+        handle(store.cancelPOSTransaction(transaction.id)) {}
+    }
+
+    func handle(_ result: FinancialOperationResult, onSuccess: () -> Void) {
+        switch result {
+        case .success: onSuccess()
+        case .failure(let message):
+            errorMessage = message
+            showError = true
+        }
+    }
+
+    func companyName(_ id: UUID) -> String { store.company(for: id)?.name ?? "Bilinmeyen Şirket" }
+
+    func currency(_ value: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = "TRY"
         formatter.locale = Locale(identifier: "tr_TR")
-
         return formatter.string(from: NSNumber(value: value)) ?? "₺0,00"
     }
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
 
-            headerSection
-
-            Divider()
-
-            transactionInfoSection
-
-            Divider()
-
-            amountSection
-
-            Divider()
-
-            calculationSection
-
-            Spacer()
-
-            saveSection
-        }
-        .padding(30)
-        .frame(minWidth: 650, minHeight: 600)
+    func dateText(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "tr_TR")
+        formatter.dateFormat = "dd.MM.yyyy HH:mm"
+        return formatter.string(from: date)
     }
 
-
-    // MARK: Başlık
-
-    private var headerSection: some View {
-        HStack {
-            Text("Yeni POS İşlemi")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-
-            Spacer()
-
-            Button("Kapat") {
-                isPresented = false
-            }
-        }
+    func statusTitle(_ status: POSTransactionStatus) -> String {
+        switch status { case .pending: return "Bekleyen"; case .settled: return "Netleşen"; case .cancelled: return "İptal" }
     }
 
-
-    // MARK: İşlem Bilgileri
-
-    private var transactionInfoSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("İşlem Bilgileri")
-                .font(.headline)
-
-            fieldRow(
-                title: "Şirket",
-                placeholder: "Şirket seçilecek",
-                text: $company
-            )
-
-            fieldRow(
-                title: "POS Bankası",
-                placeholder: "Banka seçilecek",
-                text: $bank
-            )
-
-            fieldRow(
-                title: "İşlem Yapılan Kişi",
-                placeholder: "Ad Soyad",
-                text: $customer
-            )
-        }
-    }
-
-
-    // MARK: Tutar ve Komisyon
-
-    private var amountSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Tutar ve Komisyon")
-                .font(.headline)
-
-            fieldRow(
-                title: "Ana Tutar",
-                placeholder: "₺0,00",
-                text: $principalAmount
-            )
-
-            fieldRow(
-                title: "POS Çekim Tutarı",
-                placeholder: "₺0,00",
-                text: $posAmount
-            )
-
-            fieldRow(
-                title: "Komisyon Oranı",
-                placeholder: "%0,00",
-                text: $commissionRate
-            )
-
-            fieldRow(
-                title: "Taksit Sayısı",
-                placeholder: "1",
-                text: $installmentCount
-            )
-        }
-    }
-
-
-    // MARK: Hesaplama Özeti
-
-    private var calculationSection: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Banka Kesintisi")
-                    .foregroundColor(.secondary)
-
-                Text(currency(bankDeduction))
-                    .font(.title2)
-                    .fontWeight(.bold)
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 5) {
-                Text("Net Kasaya Geçecek")
-                    .foregroundColor(.secondary)
-
-                Text(currency(netToCash))
-                    .font(.title2)
-                    .fontWeight(.bold)
-            }
-        }
-    }
-
-    // MARK: Kaydet
-
-    private var saveSection: some View {
-        HStack {
-            Spacer()
-
-            Button("İşlemi Kaydet") {
-                // Sonraki aşamada kayıt işlemini bağlayacağız.
-            }
-            .keyboardShortcut(.defaultAction)
-        }
-    }
-
-
-    // MARK: Form Satırı
-
-    private func fieldRow(
-        title: String,
-        placeholder: String,
-        text: Binding<String>
-    ) -> some View {
-        HStack {
-            Text(title)
-                .frame(width: 150, alignment: .leading)
-
-            TextField(placeholder, text: text)
-                .textFieldStyle(.roundedBorder)
+    func statusColor(_ status: POSTransactionStatus) -> Color {
+        switch status {
+        case .pending: return AppTheme.warning
+        case .settled: return AppTheme.positive
+        case .cancelled: return AppTheme.negative
         }
     }
 }
 
+enum POSStatusFilter: String, CaseIterable, Identifiable {
+    case all, pending, settled, cancelled
+    var id: String { rawValue }
+    var title: String { switch self { case .all: return "Tümü"; case .pending: return "Bekleyen"; case .settled: return "Netleşen"; case .cancelled: return "İptal" } }
+    func matches(_ status: POSTransactionStatus) -> Bool {
+        switch self { case .all: return true; case .pending: return status == .pending; case .settled: return status == .settled; case .cancelled: return status == .cancelled }
+    }
+}
+
+enum POSDateFilter: String, CaseIterable, Identifiable {
+    case all, today, week, month, year, custom
+    var id: String { rawValue }
+    var title: String { switch self { case .all: return "Tüm Tarihler"; case .today: return "Bugün"; case .week: return "Bu Hafta"; case .month: return "Bu Ay"; case .year: return "Bu Yıl"; case .custom: return "Özel Aralık" } }
+}

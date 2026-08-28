@@ -22,11 +22,7 @@ struct LoginView: View {
             minHeight: 650
         )
         .background(
-            Color(
-                red: 0.055,
-                green: 0.065,
-                blue: 0.085
-            )
+            AppTheme.background
         )
     }
 
@@ -40,17 +36,8 @@ struct LoginView: View {
             LinearGradient(
                 gradient: Gradient(
                     colors: [
-                        Color(
-                            red: 0.035,
-                            green: 0.055,
-                            blue: 0.095
-                        ),
-
-                        Color(
-                            red: 0.070,
-                            green: 0.105,
-                            blue: 0.160
-                        )
+                        AppTheme.background,
+                        AppTheme.accent.opacity(0.32)
                     ]
                 ),
                 startPoint: .topLeading,
@@ -278,11 +265,7 @@ struct LoginView: View {
 
         ZStack {
 
-            Color(
-                red: 0.080,
-                green: 0.090,
-                blue: 0.110
-            )
+            AppTheme.panel
 
             loginCard
         }
@@ -481,11 +464,7 @@ struct LoginView: View {
                     .system(size: 12)
                 )
                 .foregroundColor(
-                    Color(
-                        red: 1.0,
-                        green: 0.55,
-                        blue: 0.45
-                    )
+                    AppTheme.negative
                 )
             }
         }
@@ -523,14 +502,10 @@ struct LoginView: View {
             PlainButtonStyle()
         )
         .foregroundColor(
-            Color(
-                red: 0.05,
-                green: 0.07,
-                blue: 0.10
-            )
+            AppTheme.primaryText
         )
         .background(
-            Color.white
+            AppTheme.accent
         )
         .cornerRadius(10)
     }

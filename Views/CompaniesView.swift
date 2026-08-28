@@ -260,12 +260,12 @@ struct CompaniesView: View {
                             .frame(width: 280, height: 145, alignment: .topLeading)
                             .background(
                                 RoundedRectangle(cornerRadius: 16)
-                                    .fill(Color.primary.opacity(0.06))
+                                    .fill(AppTheme.cardElevated)
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 16)
                                     .stroke(
-                                        Color.primary.opacity(0.10),
+                                        AppTheme.border,
                                         lineWidth: 1
                                     )
                             )

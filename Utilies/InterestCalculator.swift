@@ -148,7 +148,7 @@ struct InterestCalculator {
 
         let receivablePayments = payments
             .filter {
-                $0.receivableID == receivable.id
+                $0.receivableID == receivable.id && !$0.isCancelled
             }
             .sorted {
                 $0.paymentDate < $1.paymentDate
@@ -260,6 +260,6 @@ struct InterestCalculator {
             }
         }
 
-        return max(balance, 0)
+        return MoneyMath.rounded(max(balance, 0))
     }
 }
