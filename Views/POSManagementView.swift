@@ -77,18 +77,30 @@ struct POSManagementView: View {
                     .foregroundColor(.secondary)
             }
             Spacer()
-            Button {
-                if let companyID = selectedCompanyID,
-                   let company = store.company(for: companyID) {
-                    newTransactionCompany = company
-                } else {
-                    newTransactionCompany = store.companies.first
+            HStack(spacing: 10) {
+                Picker("Kaynak Şirket", selection: $selectedCompanyID) {
+                    Text("Şirket Seçin").tag(nil as UUID?)
+                    ForEach(store.companies) { company in
+                        Text(company.name).tag(company.id as UUID?)
+                    }
                 }
-            } label: {
-                Label("Yeni POS İşlemi", systemImage: "plus")
+                .frame(width: 190)
+
+                Button(action: {
+                    if let companyID = selectedCompanyID,
+                       let company = store.company(for: companyID) {
+                        newTransactionCompany = company
+                    }
+                }) {
+                    Label("Yeni POS İşlemi", systemImage: "plus")
+                        .accentButton()
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(selectedCompanyID == nil)
             }
-            .disabled(store.companies.isEmpty)
         }
+        .background(AppTheme.background.edgesIgnoringSafeArea(.all))
+        .corporateScreen()
     }
 
     var summarySection: some View {

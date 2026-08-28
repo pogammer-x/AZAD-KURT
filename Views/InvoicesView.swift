@@ -421,7 +421,7 @@ struct FinancialReportsView: View {
                 reportMetric("İptal Adedi", Double(report.pos.cancelledTransactionCount))
             }
 
-            if let companyID {
+            if let companyID = companyID {
                 ForEach(store.banks(for: companyID)) { bank in
                     HStack {
                         Label(bank.bankName, systemImage: "creditcard.fill")
@@ -438,7 +438,7 @@ struct FinancialReportsView: View {
     }
 
     func accountBalance(_ companyID: UUID?) -> Double {
-        guard let companyID else { return store.totalCashBalance }
+        guard let companyID = companyID else { return store.totalCashBalance }
         let companyBalance = store.company(for: companyID)?.balance ?? 0
         return companyBalance + store.banks(for: companyID).reduce(0) { $0 + $1.balance }
     }

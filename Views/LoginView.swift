@@ -33,16 +33,12 @@ struct LoginView: View {
 
         ZStack {
 
-            LinearGradient(
-                gradient: Gradient(
-                    colors: [
-                        AppTheme.background,
-                        AppTheme.accent.opacity(0.32)
-                    ]
-                ),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            AppTheme.background
+
+            Rectangle()
+                .fill(AppTheme.accent)
+                .frame(width: 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             VStack(
                 alignment: .leading,

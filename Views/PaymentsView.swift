@@ -104,6 +104,8 @@ struct PaymentsView: View {
             Spacer()
         }
         .padding(25)
+        .background(AppTheme.background.edgesIgnoringSafeArea(.all))
+        .corporateScreen()
     }
 
     private func currencyText(_ amount: Double) -> String {

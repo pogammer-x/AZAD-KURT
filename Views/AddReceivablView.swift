@@ -176,7 +176,7 @@ struct AddReceivableView: View {
 
     func saveReceivable() {
 
-        guard let selectedCompanyID else {
+        guard let selectedCompanyID = selectedCompanyID else {
             return
         }
 

@@ -1,5 +1,23 @@
 import SwiftUI
 
+enum CompanyDetailSection: String, CaseIterable, Identifiable {
+    case overview
+    case accounts
+    case transactions
+    case reports
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .overview: return "Genel Bakış"
+        case .accounts: return "Hesaplar"
+        case .transactions: return "İşlemler"
+        case .reports: return "Raporlar"
+        }
+    }
+}
+
 struct CompanyDetailView: View {
     
     let company: Company
@@ -18,24 +36,28 @@ struct CompanyDetailView: View {
     @State private var financialErrorMessage = ""
     @State private var showFinancialError = false
     @State private var balanceAdjustmentTarget: BalanceAdjustmentTarget?
+    @State private var selectedSection: CompanyDetailSection = .overview
     
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 headerSection
+                companySectionPicker
 
-                financeSection
-                movementHistorySection
-
-                Divider()
-
-                bankHeaderSection
-                bankListSection
-
-                Divider()
-
-                transactionHeaderSection
-                transactionListSection
+                Group {
+                    if selectedSection == .overview {
+                        financeSection
+                        movementHistorySection
+                    } else if selectedSection == .accounts {
+                        bankHeaderSection
+                        bankListSection
+                    } else if selectedSection == .transactions {
+                        transactionHeaderSection
+                        transactionListSection
+                    } else {
+                        companyReportSection
+                    }
+                }
             }
             .padding(25)
         }
@@ -160,19 +182,53 @@ struct CompanyDetailView: View {
     // MARK: - ŞİRKET BAŞLIK
     
     var headerSection: some View {
-        
-        VStack(
-            alignment: .leading,
-            spacing: 5
-        ) {
-            
-            Text(company.name)
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            
-            Text("Şirket Yönetim Paneli")
-                .foregroundColor(.secondary)
+        HStack {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(company.name)
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                Text("Şirket Yönetim Paneli")
+                    .foregroundColor(AppTheme.textSecondary)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("TOPLAM BAKİYE")
+                    .font(.caption)
+                    .foregroundColor(AppTheme.textSecondary)
+                Text(turkishTL(currentCompany.balance))
+                    .font(.title)
+                    .fontWeight(.bold)
+            }
         }
+        .premiumCard(secondary: true)
+    }
+
+    var companySectionPicker: some View {
+        Picker("Bölüm", selection: $selectedSection) {
+            ForEach(CompanyDetailSection.allCases) { section in
+                Text(section.title).tag(section)
+            }
+        }
+        .pickerStyle(SegmentedPickerStyle())
+    }
+
+    var companyReportSection: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 14)], spacing: 14) {
+            reportCard("Toplam POS", store.totalPOSAmount(for: company.id), "creditcard.fill")
+            reportCard("Şirket Bakiyesi", currentCompany.balance, "building.2.fill")
+            reportCard("POS Bankası", Double(posBanks.count), "chart.bar.fill")
+        }
+    }
+
+    func reportCard(_ title: String, _ value: Double, _ icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: icon).foregroundColor(AppTheme.accent)
+            Text(title).font(.caption).foregroundColor(AppTheme.textSecondary)
+            Text(title == "POS Bankası" ? "\(Int(value)) hesap" : money(value))
+                .font(.title2).fontWeight(.bold)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .premiumCard()
     }
 
 
@@ -447,6 +503,15 @@ struct CompanyDetailView: View {
 
                             Divider()
 
+                            HStack {
+                                Text("Banka Bakiyesi")
+                                    .foregroundColor(AppTheme.textSecondary)
+                                Spacer()
+                                Text(turkishTL(bank.balance))
+                                    .font(.title3)
+                                    .fontWeight(.bold)
+                            }
+
                             // ORANLAR
                             HStack(spacing: 30) {
 
@@ -586,8 +651,7 @@ var transactionListSection: some View {
             
         } else {
             
-            List {
-                
+            LazyVStack(spacing: 10) {
                 ForEach(posTransactions) { transaction in
                     
                     transactionRow(
@@ -595,9 +659,7 @@ var transactionListSection: some View {
                     )
                 }
             }
-            .frame(
-                minHeight: 280
-            )
+            .frame(minHeight: 280)
         }
     }
 }
@@ -730,6 +792,9 @@ func transactionRow(
         }
     }
     .padding(.vertical, 8)
+    .padding(.horizontal, 14)
+    .background(RoundedRectangle(cornerRadius: 12).fill(AppTheme.card))
+    .overlay(RoundedRectangle(cornerRadius: 12).stroke(AppTheme.border))
 }
 
 

@@ -76,7 +76,8 @@ struct ReceivablesView: View {
 
             } else {
 
-                List {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
                     ForEach(store.receivables) { receivable in
                         HStack(spacing: 20) {
                             VStack(alignment: .leading, spacing: 5) {
@@ -119,12 +120,17 @@ struct ReceivablesView: View {
                                     .disabled(receivable.status == .cancelled)
                             }
                         }
-                        .padding(.vertical, 6)
+                        .padding(16)
+                        .background(RoundedRectangle(cornerRadius: 14).fill(AppTheme.card))
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border))
+                    }
                     }
                 }
             }
         }
         .padding(25)
+        .background(AppTheme.background.edgesIgnoringSafeArea(.all))
+        .corporateScreen()
         .sheet(isPresented: $showAddReceivable) {
 
             AddReceivableView()

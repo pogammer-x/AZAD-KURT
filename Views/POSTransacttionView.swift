@@ -14,7 +14,6 @@ struct POSTransactionView: View {
     @State private var installmentCount: Int
     @State private var fundingSources: [POSFundingSource]
 
-    @State private var useCustomerRate: Bool
     @State private var customerRateText: String
     @State private var saveErrorMessage = ""
     @State private var showSaveError = false
@@ -84,13 +83,10 @@ struct POSTransactionView: View {
                     editingTransaction?.installmentCount ?? 1
             )
 
-        _useCustomerRate =
-            State(initialValue: (editingTransaction?.customerRate ?? 0) > 0)
-
         _customerRateText =
             State(initialValue: editingTransaction.map {
                 String(format: "%.2f", $0.customerRate)
-            } ?? "")
+            } ?? "6")
     }
 
 
@@ -164,7 +160,7 @@ struct POSTransactionView: View {
 
                             Divider()
 
-                            commissionSection
+                            customerRateSection
 
                             Divider()
 
@@ -193,6 +189,7 @@ struct POSTransactionView: View {
                     posAmount <= 0 ||
                     fundingSources.contains { $0.amount <= 0 }
                 )
+                .accentButton()
                 .padding(20)
             }
         }
@@ -319,16 +316,15 @@ struct POSTransactionView: View {
             Text("Toplam Ana Para: \(money(principal))")
                 .fontWeight(.semibold)
 
-            if useCustomerRate {
-                Text("Müşteri oranına göre brüt POS: \(money(posAmount))")
-                    .fontWeight(.semibold)
-            } else {
-                Text("POS Brüt Tutarı")
-                    .font(.headline)
+            Text("POS Brüt Tutar")
+                .font(.headline)
 
-                TextField("Örn: 106.000", text: posBinding)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-            }
+            TextField("Örn: 106.000", text: posBinding)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+
+            Text("Ana para ve müşteri oranına göre otomatik hesaplanır; gerekirse değiştirebilirsiniz.")
+                .font(.caption)
+                .foregroundColor(AppTheme.textSecondary)
         }
     }
 
@@ -368,20 +364,17 @@ struct POSTransactionView: View {
     }
 
 
-    // MARK: - KOMİSYON
+    // MARK: - MÜŞTERİ ORANI
 
-    var commissionSection: some View {
+    var customerRateSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Banka komisyon oranı: %" + String(format: "%.2f", bankRate))
-                .fontWeight(.bold)
-            Text("Bu oran Şirket > POS banka ayarlarından yönetilir.")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            Text("Müşteriye Uygulanan Oran")
+                .font(.headline)
 
-            Toggle("Müşteriye satış oranı uygula", isOn: $useCustomerRate)
-
-            if useCustomerRate {
-                TextField("Müşteri oranı (%)", text: $customerRateText)
+            HStack {
+                Text("%")
+                    .foregroundColor(AppTheme.textSecondary)
+                TextField("6", text: customerRateBinding)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
             }
         }
@@ -407,30 +400,6 @@ struct POSTransactionView: View {
             resultRow(
                 title: "POS Brüt",
                 value: posAmount
-            )
-
-            HStack {
-                Text("Müşteri Oranı")
-                Spacer()
-                Text("%" + String(format: "%.2f", customerRate))
-                    .fontWeight(.semibold)
-            }
-
-            HStack {
-                Text("Banka Oranı")
-                Spacer()
-                Text("%" + String(format: "%.2f", bankRate))
-                    .fontWeight(.semibold)
-            }
-
-            resultRow(
-                title: "Banka Kesintisi",
-                value: commissionAmount
-            )
-
-            resultRow(
-                title: "Net Banka",
-                value: netBankAmount
             )
 
             resultRow(
@@ -463,6 +432,16 @@ struct POSTransactionView: View {
         )
     }
 
+    var customerRateBinding: Binding<String> {
+        Binding<String>(
+            get: { customerRateText },
+            set: { newValue in
+                customerRateText = newValue
+                updateAutomaticPOSAmount()
+            }
+        )
+    }
+
 
     func fundingAmountBinding(
         for sourceID: UUID
@@ -487,6 +466,7 @@ struct POSTransactionView: View {
                 }
 
                 fundingSources[index].amount = convertMoney(newValue)
+                updateAutomaticPOSAmount()
             }
         )
     }
@@ -555,10 +535,7 @@ struct POSTransactionView: View {
 
 
     var customerRate: Double {
-        if useCustomerRate {
-            return convertRate(customerRateText)
-        }
-        return 0
+        return convertRate(customerRateText)
     }
 
     // MARK: - HESAPLAMA
@@ -571,10 +548,16 @@ struct POSTransactionView: View {
 
 
     var posAmount: Double {
-        if useCustomerRate {
-            return MoneyMath.rounded(principal * (1 + customerRate / 100))
+        let manualAmount = convertMoney(posText)
+        if manualAmount > 0 {
+            return manualAmount
         }
-        return convertMoney(posText)
+        return MoneyMath.rounded(principal * (1 + customerRate / 100))
+    }
+
+    func updateAutomaticPOSAmount() {
+        let amount = MoneyMath.rounded(principal * (1 + customerRate / 100))
+        posText = POSTransactionView.initialMoney(amount)
     }
 
 

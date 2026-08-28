@@ -21,8 +21,6 @@ struct CompaniesView: View {
 
                 headerSection
 
-                Divider()
-
                 if store.companies.isEmpty {
 
                     emptySection
@@ -36,7 +34,7 @@ struct CompaniesView: View {
             }
             .padding(25)
         }
-        .background(AppTheme.background)
+        .background(AppTheme.background.edgesIgnoringSafeArea(.all))
         .corporateScreen()
 
         // YENİ ŞİRKET
@@ -111,7 +109,7 @@ struct CompaniesView: View {
                     "Şirketlerinizi ve POS bankalarınızı yönetin"
                 )
                 .foregroundColor(
-                    .secondary
+                    AppTheme.textSecondary
                 )
             }
 
@@ -133,7 +131,9 @@ struct CompaniesView: View {
 
                     Text("Şirket Ekle")
                 }
+                .accentButton()
             }
+            .buttonStyle(PlainButtonStyle())
         }
     }
 
@@ -192,76 +192,62 @@ struct CompaniesView: View {
     // MARK: - ŞİRKET LİSTESİ
 
     var companyList: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(alignment: .top, spacing: 16) {
+        ScrollView {
+            LazyVStack(spacing: 16) {
 
                 ForEach(store.companies) { company in
 
-                    VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .center, spacing: 14) {
 
                         NavigationLink(
                             destination:
                                 CompanyDetailView(company: company)
                                     .environmentObject(store)
                         ) {
-                            VStack(alignment: .leading, spacing: 14) {
+                            HStack(spacing: 18) {
 
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
+                                Text(String(company.name.prefix(1)).uppercased())
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .frame(width: 52, height: 52)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(AppTheme.accent)
+                                    )
 
-                                        Text(company.name)
-                                            .font(.title2)
-                                            .fontWeight(.bold)
-                                            .lineLimit(1)
+                                VStack(alignment: .leading, spacing: 5) {
 
-                                        Text(
-                                            "\(store.posBanks.filter { $0.companyID == company.id }.count) POS bankası"
-                                        )
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                    }
-
-                                    Spacer()
-
-                                    Image(systemName: "chevron.right")
-                                        .foregroundColor(.secondary)
-                                }
-
-                                Divider()
-
-                                HStack(spacing: 24) {
-
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("Toplam POS")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-
-                                        Text(
-                                            "₺\(store.totalPOSAmount(for: company.id), specifier: "%.2f")"
-                                        )
-                                        .font(.headline)
-                                    }
-
-                                    Spacer()
-
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("Kullanılabilir Bakiye")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-
-                                        Text(
-                                            "₺\(company.balance, specifier: "%.2f")"
-                                        )
-                                        .font(.headline)
+                                    Text(company.name)
+                                        .font(.title2)
                                         .fontWeight(.bold)
-                                    }
+                                        .lineLimit(1)
+
+                                    Text("\(store.posBanks.filter { $0.companyID == company.id }.count) POS bankası · Aktif finans hesabı")
+                                        .font(.subheadline)
+                                        .foregroundColor(AppTheme.textSecondary)
                                 }
+
+                                Spacer()
+
+                                VStack(alignment: .trailing, spacing: 5) {
+                                    Text("TOPLAM BAKİYE")
+                                        .font(.caption)
+                                        .foregroundColor(AppTheme.textSecondary)
+                                    Text("₺\(company.balance, specifier: "%.2f")")
+                                        .font(.title3)
+                                        .fontWeight(.bold)
+                                }
+
+                                Image(systemName: "chevron.right")
+                                    .font(.headline)
+                                    .foregroundColor(AppTheme.accent)
                             }
                             .padding(18)
-                            .frame(width: 280, height: 145, alignment: .topLeading)
+                            .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
+                            .contentShape(Rectangle())
                             .background(
                                 RoundedRectangle(cornerRadius: 16)
-                                    .fill(AppTheme.cardElevated)
+                                    .fill(AppTheme.cardSecondary)
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 16)
@@ -273,9 +259,7 @@ struct CompaniesView: View {
                         }
                         .buttonStyle(PlainButtonStyle())
 
-                        HStack {
-                            Spacer()
-
+                        VStack(spacing: 8) {
                             Button("Düzenle") {
                                 editingCompanyName = company.name
                                 editingCompany = company
@@ -287,11 +271,10 @@ struct CompaniesView: View {
                             }
                             .buttonStyle(.borderless)
                         }
-                        .frame(width: 280)
+                        .frame(width: 72)
                     }
                 }
             }
-            .padding(.horizontal, 4)
             .padding(.vertical, 8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

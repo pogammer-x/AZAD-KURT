@@ -116,7 +116,7 @@ struct ManualTransactionView: View {
                 Button("Vazgeç") { presentationMode.wrappedValue.dismiss() }
                 Spacer()
                 Button("Kaydet") {
-                    guard let companyID else { return }
+                    guard let companyID = companyID else { return }
                     let result = store.recordManualTransaction(
                         id: operationID,
                         companyID: companyID,
