@@ -36,7 +36,8 @@ struct CompaniesView: View {
             }
             .padding(25)
         }
-        .navigationViewStyle(StackNavigationViewStyle())
+        .background(AppTheme.background)
+        .corporateScreen()
 
         // YENİ ŞİRKET
         .sheet(
@@ -244,12 +245,12 @@ struct CompaniesView: View {
                                     Spacer()
 
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text("Net Bakiye")
+                                        Text("Kullanılabilir Bakiye")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
 
                                         Text(
-                                            "₺\(store.netBalance(for: company.id), specifier: "%.2f")"
+                                            "₺\(company.balance, specifier: "%.2f")"
                                         )
                                         .font(.headline)
                                         .fontWeight(.bold)
@@ -270,7 +271,7 @@ struct CompaniesView: View {
                                     )
                             )
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(PlainButtonStyle())
 
                         HStack {
                             Spacer()

@@ -105,13 +105,29 @@ struct POSTransactionView: View {
                     spacing: 14
                 ) {
 
-                    Text(
-                        editingTransaction == nil
-                        ? "Yeni POS İşlemi"
-                        : "POS İşlemini Düzenle"
-                    )
-                    .font(.title)
-                    .fontWeight(.bold)
+                    HStack {
+                        Text(
+                            editingTransaction == nil
+                            ? "Yeni POS İşlemi"
+                            : "POS İşlemini Düzenle"
+                        )
+                        .font(.title)
+                        .fontWeight(.bold)
+
+                        Spacer()
+
+                        Button(action: {
+                            presentationMode.wrappedValue.dismiss()
+                        }) {
+                            Text("×")
+                                .font(.system(size: 32, weight: .bold))
+                                .foregroundColor(AppTheme.primaryText)
+                                .frame(width: 42, height: 42)
+                                .background(Circle().fill(AppTheme.accent))
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .accessibilityLabel(Text("Kapat"))
+                    }
 
                     Text(company.name)
                         .foregroundColor(.secondary)
@@ -184,6 +200,8 @@ struct POSTransactionView: View {
             width: 560,
             height: 680
         )
+        .background(AppTheme.background)
+        .corporateScreen()
         .alert(isPresented: $showSaveError) {
             Alert(
                 title: Text("POS İşlemi Hatası"),
@@ -387,13 +405,32 @@ struct POSTransactionView: View {
             )
 
             resultRow(
-                title: "POS Tutarı",
+                title: "POS Brüt",
                 value: posAmount
             )
 
+            HStack {
+                Text("Müşteri Oranı")
+                Spacer()
+                Text("%" + String(format: "%.2f", customerRate))
+                    .fontWeight(.semibold)
+            }
+
+            HStack {
+                Text("Banka Oranı")
+                Spacer()
+                Text("%" + String(format: "%.2f", bankRate))
+                    .fontWeight(.semibold)
+            }
+
             resultRow(
-                title: "Banka Komisyonu",
+                title: "Banka Kesintisi",
                 value: commissionAmount
+            )
+
+            resultRow(
+                title: "Net Banka",
+                value: netBankAmount
             )
 
             resultRow(
@@ -401,15 +438,10 @@ struct POSTransactionView: View {
                 value: grossProfitAmount
             )
 
-            resultRow(
-                title: "Bankadan Net Gelecek",
-                value: netBankAmount
-            )
-
             Divider()
 
             resultRow(
-                title: "Net Kâr",
+                title: "Gerçek Net Kâr",
                 value: profitAmount
             )
         }
@@ -426,10 +458,7 @@ struct POSTransactionView: View {
             },
             set: { newValue in
 
-                posText =
-                    formatMoneyInput(
-                        newValue
-                    )
+                posText = newValue
             }
         )
     }
@@ -649,12 +678,7 @@ struct POSTransactionView: View {
         _ text: String
     ) -> Double {
 
-        let clean = text
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: ".", with: "")
-            .replacingOccurrences(of: ",", with: ".")
-
-        return Double(clean) ?? 0
+        return MoneyMath.parseTurkishAmount(text) ?? 0
     }
 
 

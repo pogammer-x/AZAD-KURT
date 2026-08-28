@@ -1251,7 +1251,7 @@ final class AppStore: ObservableObject {
 
         let signedAmount = type == .capitalContribution ? amount : -amount
 
-        if let posBankID {
+        if let posBankID = posBankID {
             guard let bankIndex = posBanks.firstIndex(where: {
                 $0.id == posBankID && $0.companyID == companyID
             }) else {
