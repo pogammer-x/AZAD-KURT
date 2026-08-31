@@ -15,6 +15,8 @@ struct POSTransactionView: View {
     @State private var fundingSources: [POSFundingSource]
 
     @State private var customerRateText: String
+    @State private var fundingCompanySearch = ""
+    @State private var selectingFundingSourceID: UUID?
     @State private var saveErrorMessage = ""
     @State private var showSaveError = false
     @Environment(\.presentationMode) private var presentationMode
@@ -278,11 +280,37 @@ struct POSTransactionView: View {
 
             ForEach($fundingSources) { $source in
                 HStack {
-                    Picker("Kaynak Şirket", selection: $source.companyID) {
-                        ForEach(fundingCompanies) { fundingCompany in
-                            Text(fundingCompany.name)
-                                .tag(fundingCompany.id)
+                    Button {
+                        fundingCompanySearch = ""
+                        selectingFundingSourceID = source.id
+                    } label: {
+                        HStack(spacing: 10) {
+                            companyInitial(for: source.companyID)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Kaynak Şirket")
+                                    .font(.caption2)
+                                    .foregroundColor(AppTheme.textSecondary)
+                                Text(fundingCompanyName(for: source.companyID))
+                                    .lineLimit(1)
+                            }
+
+                            Spacer()
+                            Image(systemName: "chevron.down")
+                                .font(.caption)
+                                .foregroundColor(AppTheme.textSecondary)
                         }
+                        .padding(.horizontal, 10)
+                        .frame(width: 250, height: 46)
+                        .background(RoundedRectangle(cornerRadius: 9).fill(AppTheme.cardSecondary))
+                        .overlay(RoundedRectangle(cornerRadius: 9).stroke(AppTheme.border))
+                    }
+                    .buttonStyle(.plain)
+                    .popover(
+                        isPresented: fundingSourcePopoverBinding(for: source.id),
+                        arrowEdge: .bottom
+                    ) {
+                        fundingCompanyPicker(for: source.id)
                     }
 
                     TextField(
@@ -326,6 +354,90 @@ struct POSTransactionView: View {
                 .font(.caption)
                 .foregroundColor(AppTheme.textSecondary)
         }
+    }
+
+    func fundingCompanyPicker(for sourceID: UUID) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Kaynak Şirket Seçin")
+                .font(.headline)
+
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(AppTheme.textSecondary)
+                TextField("Şirket ara", text: $fundingCompanySearch)
+                    .textFieldStyle(PlainTextFieldStyle())
+            }
+            .padding(9)
+            .background(RoundedRectangle(cornerRadius: 8).fill(AppTheme.cardSecondary))
+
+            ScrollView {
+                VStack(spacing: 4) {
+                    ForEach(filteredFundingCompanies) { fundingCompany in
+                        Button {
+                            selectFundingCompany(fundingCompany.id, for: sourceID)
+                        } label: {
+                            HStack(spacing: 10) {
+                                companyInitial(for: fundingCompany.id)
+                                Text(fundingCompany.name)
+                                    .foregroundColor(AppTheme.primaryText)
+                                Spacer()
+                                if selectedFundingCompanyID(for: sourceID) == fundingCompany.id {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(AppTheme.accent)
+                                }
+                            }
+                            .padding(8)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .frame(maxHeight: 220)
+        }
+        .padding(14)
+        .frame(width: 310)
+        .background(AppTheme.panel)
+        .corporateScreen()
+    }
+
+    var filteredFundingCompanies: [Company] {
+        let query = fundingCompanySearch.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return fundingCompanies }
+        return fundingCompanies.filter {
+            $0.name.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    func fundingSourcePopoverBinding(for sourceID: UUID) -> Binding<Bool> {
+        Binding(
+            get: { selectingFundingSourceID == sourceID },
+            set: { if !$0 { selectingFundingSourceID = nil } }
+        )
+    }
+
+    func selectedFundingCompanyID(for sourceID: UUID) -> UUID? {
+        fundingSources.first(where: { $0.id == sourceID })?.companyID
+    }
+
+    func selectFundingCompany(_ companyID: UUID, for sourceID: UUID) {
+        guard let index = fundingSources.firstIndex(where: { $0.id == sourceID }) else { return }
+        fundingSources[index].companyID = companyID
+        selectingFundingSourceID = nil
+    }
+
+    func fundingCompanyName(for companyID: UUID) -> String {
+        fundingCompanies.first(where: { $0.id == companyID })?.name ?? "Şirket seçin"
+    }
+
+    func companyInitial(for companyID: UUID) -> some View {
+        let initial = fundingCompanyName(for: companyID).trimmingCharacters(in: .whitespaces).first
+        return Text(initial.map(String.init) ?? "?")
+            .font(.caption)
+            .fontWeight(.bold)
+            .foregroundColor(AppTheme.primaryText)
+            .frame(width: 28, height: 28)
+            .background(Circle().fill(AppTheme.accent))
     }
 
 
